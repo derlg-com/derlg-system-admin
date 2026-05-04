@@ -16,9 +16,11 @@ interface AuthState {
   user: AdminUser | null
   accessToken: string | null
   isAuthenticated: boolean
+  _hasHydrated: boolean
   setAuth: (user: AdminUser, token: string) => void
   clearAuth: () => void
   updateUser: (updates: Partial<AdminUser>) => void
+  setHasHydrated: (v: boolean) => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -27,6 +29,8 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       accessToken: null,
       isAuthenticated: false,
+      _hasHydrated: false,
+      setHasHydrated: (v) => set({ _hasHydrated: v }),
       setAuth: (user, token) => {
         if (typeof window !== 'undefined') {
           localStorage.setItem('admin_access_token', token)
@@ -46,7 +50,19 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'derlg-admin-auth',
-      partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
+      // Persist all three so the token survives page refresh
+      partialize: (state) => ({
+        user: state.user,
+        accessToken: state.accessToken,
+        isAuthenticated: state.isAuthenticated,
+      }),
+      onRehydrateStorage: () => (state) => {
+        // Sync token into localStorage after rehydration
+        if (state?.accessToken && typeof window !== 'undefined') {
+          localStorage.setItem('admin_access_token', state.accessToken)
+        }
+        state?.setHasHydrated(true)
+      },
     },
   ),
 )

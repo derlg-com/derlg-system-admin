@@ -11,20 +11,30 @@ import { authApi } from '@/lib/api'
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const { user, isAuthenticated, clearAuth } = useAuthStore()
+  const { user, isAuthenticated, _hasHydrated, clearAuth } = useAuthStore()
   const { language, setLanguage } = useUIStore()
   const { connectionStatus } = useAdminWebSocket(isAuthenticated)
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    // Wait for Zustand to rehydrate from localStorage before redirecting
+    if (_hasHydrated && !isAuthenticated) {
       router.replace('/login')
     }
-  }, [isAuthenticated, router])
+  }, [_hasHydrated, isAuthenticated, router])
 
   const handleLogout = async () => {
     try { await authApi.logout() } catch { /* ignore */ }
     clearAuth()
     router.replace('/login')
+  }
+
+  // Show loading spinner while Zustand is rehydrating
+  if (!_hasHydrated) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--bg-base)' }}>
+        <span className="spinner" style={{ width: 32, height: 32 }} />
+      </div>
+    )
   }
 
   if (!isAuthenticated) return null

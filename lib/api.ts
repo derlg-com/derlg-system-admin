@@ -11,6 +11,19 @@ const api: AxiosInstance = axios.create({
 let isRefreshing = false
 let pendingRequests: Array<() => void> = []
 
+// Unwrap the backend's { success, data, message } response envelope
+api.interceptors.response.use((response) => {
+  if (
+    response.data &&
+    typeof response.data === 'object' &&
+    'success' in response.data &&
+    'data' in response.data
+  ) {
+    response.data = response.data.data
+  }
+  return response
+})
+
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('admin_access_token')
@@ -33,7 +46,8 @@ api.interceptors.response.use(
       isRefreshing = true
       try {
         const res = await axios.post(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true })
-        const { accessToken } = res.data
+        const tokenData = res.data?.data ?? res.data
+        const { accessToken } = tokenData
         localStorage.setItem('admin_access_token', accessToken)
         pendingRequests.forEach((cb) => cb())
         pendingRequests = []
