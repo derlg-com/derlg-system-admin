@@ -16,13 +16,13 @@ interface DataTableProps<T> {
   data: T[]
   loading?: boolean
   emptyMessage?: string
-  rowKey?: keyof T | ((row: T) => string)
+  rowKey?: string | ((row: T) => string)
   onRowClick?: (row: T) => void
   pageSize?: number
   actions?: (row: T) => React.ReactNode
 }
 
-export function DataTable<T extends Record<string, any>>({
+export function DataTable<T extends Record<string, any> = Record<string, any>>({
   columns,
   data,
   loading,
@@ -62,7 +62,7 @@ export function DataTable<T extends Record<string, any>>({
   const getKey = (row: T, i: number): string => {
     if (!rowKey) return String(i)
     if (typeof rowKey === 'function') return rowKey(row)
-    return String(row[rowKey])
+    return String((row as Record<string, any>)[rowKey])
   }
 
   if (loading) {
