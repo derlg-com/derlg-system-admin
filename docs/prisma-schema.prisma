@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ===========================================================================
+// ADMIN-SPECIFIC ENUMS
+// ===========================================================================
+
+enum DriverStatus {
+  AVAILABLE
+  BUSY
+  OFFLINE
+}
+
+enum MaintenanceStatus {
+  SCHEDULED
+  IN_MAINTENANCE
+  COMPLETED
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  OPERATIONS_MANAGER
+  FLEET_MANAGER
+  SUPPORT_AGENT
+}
+
+enum AuditActionType {
+  DRIVER_ASSIGNMENT
+  DRIVER_STATUS_UPDATE
+  BOOKING_MODIFICATION
+  BOOKING_CANCELLATION
+  PRICING_CHANGE
+  USER_ROLE_CHANGE
+  EMERGENCY_RESPONSE
+  STUDENT_VERIFICATION
+  LOYALTY_ADJUSTMENT
+  DISCOUNT_CODE_CHANGE
+  ADMIN_USER_CHANGE
+}
+
+// ===========================================================================
+// ADMIN MODELS
+//
+// These models are owned by the admin panel. They JOIN to the DerLg main
+// app's tables (users, bookings, transportation_vehicles, hotels, guides, etc.)
+// via foreign keys. The main app tables are managed by DerLg's NestJS backend.
+// ===========================================================================
+
+model Driver {
+  id               String       @id @default(uuid()) @db.Uuid
+  driverName       String       @map("driver_name") @db.VarChar(255)
+  driverId         String       @unique @map("driver_id") @db.VarChar(50)
+  telegramId       String       @unique @map("telegram_id") @db.VarChar(100)
+  phone            String       @db.VarChar(20)
+  vehicleId        String?      @map("vehicle_id") @db.Uuid
+  status           DriverStatus @default(OFFLINE)
+  lastStatusUpdate DateTime     @default(now()) @map("last_status_update")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  assignments DriverAssignment[]
+
+  @@index([status])
+  @@index([vehicleId])
+  @@index([telegramId])
+  @@map("drivers")
+}
+
+model DriverAssignment {
+  id                  String   @id @default(uuid()) @db.Uuid
+  driverId            String   @map("driver_id") @db.Uuid
+  bookingId           String   @map("booking_id") @db.Uuid
+  vehicleId           String   @map("vehicle_id") @db.Uuid
+  assignmentTimestamp DateTime @default(now()) @map("assignment_timestamp")
+  completionTimestamp DateTime? @map("completion_timestamp")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  driver Driver @relation(fields: [driverId], references: [id])
+
+  @@index([driverId])
+  @@index([bookingId])
+  @@index([driverId, completionTimestamp])
+  @@map("driver_assignments")
+}
+
+model VehicleMaintenance {
+  id               String            @id @default(uuid()) @db.Uuid
+  vehicleId        String            @map("vehicle_id") @db.Uuid
+  maintenanceType  String            @map("maintenance_type") @db.VarChar(100)
+  scheduledDate    DateTime          @map("scheduled_date") @db.Date
+  completionDate   DateTime?         @map("completion_date") @db.Date
+  maintenanceCost  Decimal?          @map("maintenance_cost") @db.Decimal(10, 2)
+  maintenanceNotes String?           @map("maintenance_notes") @db.Text
+  status           MaintenanceStatus @default(SCHEDULED)
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  @@index([vehicleId])
+  @@index([status])
+  @@index([scheduledDate])
+  @@map("vehicle_maintenance")
+}
+
+model AdminUser {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @unique @map("user_id") @db.Uuid
+  adminRole   AdminRole @map("admin_role")
+  permissions Json?
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([adminRole])
+  @@map("admin_users")
+}
+
+model Backup {
+  id               String   @id @default(uuid()) @db.Uuid
+  backupFileUrl    String   @map("backup_file_url") @db.Text
+  backupSizeBytes  BigInt?  @map("backup_size_bytes")
+  createdByAdminId String   @map("created_by_admin_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("backups")
+}

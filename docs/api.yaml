@@ -1,0 +1,908 @@
+openapi: "3.1.0"
+info:
+  title: DerLg Admin API
+  description: |
+    Small, focused admin API endpoints. Each endpoint does one thing.
+    The admin dashboard composes 8-10 parallel requests — no mega-endpoints.
+
+    **Dashboard composition:**
+    ```
+    GET /v1/admin/bookings/today-count              →  { count: 12 }
+    GET /v1/admin/bookings/today-revenue            →  { total_usd: 2450 }
+    GET /v1/admin/drivers/count?status=AVAILABLE    →  { count: 5 }
+    GET /v1/admin/drivers/count?status=BUSY         →  { count: 3 }
+    GET /v1/admin/bookings/trend?days=30            →  [{ date, count }]
+    GET /v1/admin/bookings?unassigned=true&limit=5  →  [bookings]
+    GET /v1/admin/maintenance/upcoming              →  [maintenance]
+    GET /v1/admin/emergency?status=SENT&limit=5     →  [alerts]
+    ```
+  version: "1.0.0"
+
+servers:
+  - url: http://localhost:3003/v1
+    description: Local development
+  - url: https://admin-api.derlg.com/v1
+    description: Production
+
+security:
+  - bearerAuth: []
+
+paths:
+  # =========================================================================
+  # DRIVERS
+  # =========================================================================
+  /admin/drivers:
+    get:
+      tags: [Drivers]
+      summary: List drivers
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [AVAILABLE, BUSY, OFFLINE] }
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: Paginated driver list
+    post:
+      tags: [Drivers]
+      summary: Create driver
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateDriverDto" }
+      responses:
+        "201": { description: Driver created }
+        "409": { description: Duplicate telegram_id or driver_id }
+
+  /admin/drivers/count:
+    get:
+      tags: [Drivers]
+      summary: Count drivers by status
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [AVAILABLE, BUSY, OFFLINE] }
+      responses:
+        "200":
+          description: Driver count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+
+  /admin/drivers/{id}:
+    get:
+      tags: [Drivers]
+      summary: Get driver detail with assignments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Driver detail }
+    patch:
+      tags: [Drivers]
+      summary: Update driver (or deactivate with status: OFFLINE)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Driver updated }
+
+  # =========================================================================
+  # VEHICLES
+  # =========================================================================
+  /admin/vehicles:
+    get:
+      tags: [Vehicles]
+      summary: List vehicles
+      parameters:
+        - name: category
+          in: query
+          schema: { type: string, enum: [VAN, BUS, TUK_TUK] }
+        - name: tier
+          in: query
+          schema: { type: string, enum: [STANDARD, VIP] }
+        - name: search
+          in: query
+          schema: { type: string }
+      responses:
+        "200": { description: Vehicle list }
+    post:
+      tags: [Vehicles]
+      summary: Create vehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateVehicleDto" }
+      responses:
+        "201": { description: Vehicle created }
+
+  /admin/vehicles/{id}:
+    get:
+      tags: [Vehicles]
+      summary: Get vehicle detail with assigned driver
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Vehicle detail }
+    patch:
+      tags: [Vehicles]
+      summary: Update vehicle
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Vehicle updated }
+
+  # =========================================================================
+  # MAINTENANCE
+  # =========================================================================
+  /admin/maintenance:
+    get:
+      tags: [Maintenance]
+      summary: List maintenance records
+      parameters:
+        - name: vehicle_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { type: string, enum: [SCHEDULED, IN_MAINTENANCE, COMPLETED] }
+      responses:
+        "200": { description: Maintenance list }
+    post:
+      tags: [Maintenance]
+      summary: Schedule maintenance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScheduleMaintenanceDto" }
+      responses:
+        "201": { description: Maintenance scheduled }
+
+  /admin/maintenance/upcoming:
+    get:
+      tags: [Maintenance]
+      summary: Maintenance due within 3 days
+      responses:
+        "200": { description: Upcoming maintenance items }
+
+  /admin/maintenance/{id}:
+    patch:
+      tags: [Maintenance]
+      summary: Update maintenance (status, cost, notes)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Maintenance updated }
+
+  # =========================================================================
+  # ASSIGNMENTS
+  # =========================================================================
+  /admin/assignments:
+    get:
+      tags: [Assignments]
+      summary: List assignments
+      parameters:
+        - name: driver_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: booking_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: active
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200": { description: Assignment list }
+    post:
+      tags: [Assignments]
+      summary: Assign driver to booking
+      description: Validates driver is AVAILABLE and vehicle capacity matches
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssignDriverDto" }
+      responses:
+        "201": { description: Assignment created }
+        "409": { description: Driver not available }
+
+  /admin/assignments/{id}/complete:
+    patch:
+      tags: [Assignments]
+      summary: Complete assignment, free driver
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Assignment completed }
+
+  # =========================================================================
+  # BOOKINGS
+  # =========================================================================
+  /admin/bookings:
+    get:
+      tags: [Bookings]
+      summary: List bookings
+      parameters:
+        - name: booking_type
+          in: query
+          schema: { type: string, enum: [PACKAGE, HOTEL_ONLY, TRANSPORT_ONLY, GUIDE_ONLY] }
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: start_date
+          in: query
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          schema: { type: string, format: date }
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: ai_assisted
+          in: query
+          schema: { type: boolean }
+        - name: unassigned
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200": { description: Paginated booking list }
+
+  /admin/bookings/today-count:
+    get:
+      tags: [Bookings]
+      summary: Count bookings created today
+      responses:
+        "200":
+          description: Today's count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+
+  /admin/bookings/today-revenue:
+    get:
+      tags: [Bookings]
+      summary: Sum of confirmed booking revenue today
+      responses:
+        "200":
+          description: Today's revenue
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_usd: { type: number }
+
+  /admin/bookings/trend:
+    get:
+      tags: [Bookings]
+      summary: Daily booking counts
+      parameters:
+        - name: days
+          in: query
+          schema: { type: integer, default: 30 }
+      responses:
+        "200":
+          description: Trend data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date: { type: string, format: date }
+                        count: { type: integer }
+
+  /admin/bookings/{id}:
+    get:
+      tags: [Bookings]
+      summary: Get booking detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Full booking with payments and driver assignment }
+    patch:
+      tags: [Bookings]
+      summary: Modify booking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Booking updated }
+
+  /admin/bookings/{id}/cancel:
+    post:
+      tags: [Bookings]
+      summary: Cancel booking (processes refund, releases resources)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Booking cancelled }
+
+  # =========================================================================
+  # HOTELS
+  # =========================================================================
+  /admin/hotels:
+    get:
+      tags: [Hotels]
+      summary: List hotels
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+      responses:
+        "200": { description: Hotel list }
+    post:
+      tags: [Hotels]
+      summary: Create hotel
+      responses:
+        "201": { description: Hotel created }
+
+  /admin/hotels/{id}:
+    get:
+      tags: [Hotels]
+      summary: Get hotel with rooms
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Hotel detail }
+    patch:
+      tags: [Hotels]
+      summary: Update hotel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Hotel updated }
+
+  /admin/hotels/{hotelId}/rooms:
+    get:
+      tags: [Hotels]
+      summary: List rooms for hotel
+      parameters:
+        - name: hotelId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Room list }
+    post:
+      tags: [Hotels]
+      summary: Add room to hotel
+      parameters:
+        - name: hotelId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "201": { description: Room created }
+
+  /admin/hotels/{hotelId}/rooms/{roomId}:
+    patch:
+      tags: [Hotels]
+      summary: Update room
+      parameters:
+        - name: hotelId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: roomId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Room updated }
+
+  # =========================================================================
+  # GUIDES
+  # =========================================================================
+  /admin/guides:
+    get:
+      tags: [Guides]
+      summary: List guides
+      parameters:
+        - name: languages
+          in: query
+          schema: { type: string }
+        - name: specialties
+          in: query
+          schema: { type: string }
+      responses:
+        "200": { description: Guide list }
+    post:
+      tags: [Guides]
+      summary: Create guide
+      responses:
+        "201": { description: Guide created }
+
+  /admin/guides/{id}:
+    get:
+      tags: [Guides]
+      summary: Get guide with assignments and performance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Guide detail }
+    patch:
+      tags: [Guides]
+      summary: Update guide
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Guide updated }
+
+  # =========================================================================
+  # EMERGENCY
+  # =========================================================================
+  /admin/emergency:
+    get:
+      tags: [Emergency]
+      summary: List emergency alerts
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [SENT, ACKNOWLEDGED, RESOLVED] }
+        - name: alert_type
+          in: query
+          schema: { type: string, enum: [SOS, MEDICAL, THEFT, LOST] }
+      responses:
+        "200": { description: Alert list }
+
+  /admin/emergency/{id}:
+    get:
+      tags: [Emergency]
+      summary: Get emergency detail with user contact and location
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Emergency detail }
+    patch:
+      tags: [Emergency]
+      summary: Acknowledge or resolve emergency
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Emergency updated }
+
+  # =========================================================================
+  # CUSTOMERS
+  # =========================================================================
+  /admin/customers:
+    get:
+      tags: [Customers]
+      summary: List/search customers
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+      responses:
+        "200": { description: Customer list }
+
+  /admin/customers/{id}:
+    get:
+      tags: [Customers]
+      summary: Get customer profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Customer profile + loyalty + reviews }
+
+  # =========================================================================
+  # LOYALTY
+  # =========================================================================
+  /admin/loyalty/adjust:
+    post:
+      tags: [Loyalty]
+      summary: Adjust customer loyalty points
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, points, description]
+              properties:
+                user_id: { type: string, format: uuid }
+                points: { type: integer }
+                description: { type: string }
+      responses:
+        "200": { description: Points adjusted }
+
+  # =========================================================================
+  # DISCOUNTS
+  # =========================================================================
+  /admin/discounts:
+    get:
+      tags: [Discounts]
+      summary: List discount codes
+      responses:
+        "200": { description: Discount code list }
+    post:
+      tags: [Discounts]
+      summary: Create discount code
+      responses:
+        "201": { description: Discount code created }
+
+  /admin/discounts/{id}:
+    patch:
+      tags: [Discounts]
+      summary: Update or deactivate (is_active: false)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Discount updated }
+
+  # =========================================================================
+  # STUDENT VERIFICATIONS
+  # =========================================================================
+  /admin/student-verifications:
+    get:
+      tags: [Student Verifications]
+      summary: List student verification requests
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [PENDING, APPROVED, REJECTED] }
+      responses:
+        "200": { description: Verification list }
+
+  /admin/student-verifications/{id}:
+    patch:
+      tags: [Student Verifications]
+      summary: Approve or reject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [APPROVED, REJECTED] }
+                rejection_reason: { type: string }
+      responses:
+        "200": { description: Verification reviewed }
+
+  # =========================================================================
+  # ANALYTICS
+  # =========================================================================
+  /admin/analytics/revenue:
+    get:
+      tags: [Analytics]
+      summary: Revenue by booking type
+      parameters:
+        - name: start_date
+          in: query
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200": { description: Revenue breakdown }
+
+  /admin/analytics/booking-stats:
+    get:
+      tags: [Analytics]
+      summary: Booking stats + cancellation rate
+      parameters:
+        - name: start_date
+          in: query
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200": { description: Booking statistics }
+
+  /admin/analytics/driver-performance:
+    get:
+      tags: [Analytics]
+      summary: Driver trips and ratings
+      responses:
+        "200": { description: Driver performance data }
+
+  /admin/analytics/popular-destinations:
+    get:
+      tags: [Analytics]
+      summary: Top destinations
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10 }
+      responses:
+        "200": { description: Popular destinations }
+
+  /admin/analytics/hotel-occupancy:
+    get:
+      tags: [Analytics]
+      summary: Hotel occupancy rate
+      parameters:
+        - name: start_date
+          in: query
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200": { description: Occupancy data }
+
+  /admin/analytics/guide-utilization:
+    get:
+      tags: [Analytics]
+      summary: Guide utilization
+      parameters:
+        - name: start_date
+          in: query
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200": { description: Guide utilization data }
+
+  /admin/analytics/ai-bookings:
+    get:
+      tags: [Analytics]
+      summary: AI-assisted booking success rate
+      responses:
+        "200": { description: AI booking metrics }
+
+  # =========================================================================
+  # ADMIN USERS (SUPER_ADMIN only)
+  # =========================================================================
+  /admin/users:
+    get:
+      tags: [Admin Users]
+      summary: List admin users
+      responses:
+        "200": { description: Admin user list }
+    post:
+      tags: [Admin Users]
+      summary: Create admin user
+      responses:
+        "201": { description: Admin user created }
+
+  /admin/users/{id}:
+    patch:
+      tags: [Admin Users]
+      summary: Update role or deactivate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Admin updated }
+
+  # =========================================================================
+  # AUDIT LOGS (SUPER_ADMIN only)
+  # =========================================================================
+  /admin/audit-logs:
+    get:
+      tags: [Audit Logs]
+      summary: List audit logs
+      parameters:
+        - name: start_date
+          in: query
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          schema: { type: string, format: date }
+        - name: admin_user_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: action_type
+          in: query
+          schema: { type: string }
+      responses:
+        "200": { description: Paginated audit log list }
+
+  # =========================================================================
+  # EXPORT (SUPER_ADMIN only)
+  # =========================================================================
+  /admin/export/bookings:
+    get:
+      tags: [Export]
+      summary: Export bookings as CSV
+      parameters:
+        - name: start_date
+          in: query
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200": { description: CSV file }
+
+  /admin/export/drivers:
+    get:
+      tags: [Export]
+      summary: Export driver performance data
+      responses:
+        "200": { description: CSV file }
+
+  /admin/export/payments:
+    get:
+      tags: [Export]
+      summary: Export payment data (encrypted)
+      parameters:
+        - name: start_date
+          in: query
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200": { description: Encrypted CSV file }
+
+  # =========================================================================
+  # BACKUPS (SUPER_ADMIN only)
+  # =========================================================================
+  /admin/backups:
+    get:
+      tags: [Backups]
+      summary: List backups
+      responses:
+        "200": { description: Backup list }
+    post:
+      tags: [Backups]
+      summary: Trigger database backup
+      responses:
+        "202": { description: Backup initiated }
+
+  # =========================================================================
+  # AI SESSIONS
+  # =========================================================================
+  /admin/ai-sessions/{sessionId}:
+    get:
+      tags: [AI Sessions]
+      summary: Retrieve AI conversation from Redis
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Conversation history }
+
+  # =========================================================================
+  # TELEGRAM WEBHOOK (service auth)
+  # =========================================================================
+  /telegram/driver-status:
+    post:
+      tags: [Telegram]
+      summary: Receive driver status from Telegram Bot
+      security:
+        - webhookSecret: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [telegram_id, vehicle_id, driver_name, status]
+              properties:
+                telegram_id: { type: string }
+                vehicle_id: { type: string }
+                driver_name: { type: string }
+                status: { type: string, enum: [AVAILABLE, BUSY, OFFLINE] }
+      responses:
+        "200": { description: Status updated and published to Redis }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    webhookSecret:
+      type: apiKey
+      in: header
+      name: X-Webhook-Secret
+
+  schemas:
+    CreateDriverDto:
+      type: object
+      required: [driver_name, driver_id, telegram_id, phone]
+      properties:
+        driver_name: { type: string }
+        driver_id: { type: string, example: "DLG-DRV-001" }
+        telegram_id: { type: string }
+        phone: { type: string }
+        vehicle_id: { type: string, format: uuid }
+
+    CreateVehicleDto:
+      type: object
+      required: [name, category, capacity, tier, price_per_day]
+      properties:
+        name: { type: string }
+        category: { type: string, enum: [VAN, BUS, TUK_TUK] }
+        capacity: { type: integer }
+        tier: { type: string, enum: [STANDARD, VIP] }
+        price_per_day: { type: number }
+        price_per_km: { type: number }
+        features: { type: array, items: { type: string } }
+
+    ScheduleMaintenanceDto:
+      type: object
+      required: [vehicle_id, maintenance_type, scheduled_date]
+      properties:
+        vehicle_id: { type: string, format: uuid }
+        maintenance_type: { type: string }
+        scheduled_date: { type: string, format: date }
+        maintenance_notes: { type: string }
+
+    AssignDriverDto:
+      type: object
+      required: [driver_id, booking_id, vehicle_id]
+      properties:
+        driver_id: { type: string, format: uuid }
+        booking_id: { type: string, format: uuid }
+        vehicle_id: { type: string, format: uuid }
