@@ -833,12 +833,110 @@ paths:
         "200": { description: Conversation history }
 
   # =========================================================================
-  # TELEGRAM WEBHOOK (service auth)
+  # TELEGRAM BROADCAST (admin-initiated)
   # =========================================================================
-  /telegram/driver-status:
+  /admin/telegram/broadcast:
     post:
-      tags: [Telegram]
-      summary: Receive driver status from Telegram Bot
+      tags: [Telegram Broadcast]
+      summary: Send broadcast message to drivers
+      description: |
+        Sends a message to drivers matching the target filter.
+        Uses Bull queue for async delivery with rate limiting (30 msg/sec).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message, target_filter]
+              properties:
+                message: { type: string, maxLength: 4096 }
+                image_url: { type: string, format: uri }
+                target_filter:
+                  type: object
+                  properties:
+                    type: { type: string, enum: [all, online, offline, vehicle_type] }
+                    value: { type: string }
+      responses:
+        "201":
+          description: Broadcast queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message_id: { type: string }
+                  queued_count: { type: integer }
+
+  /admin/telegram/broadcasts:
+    get:
+      tags: [Telegram Broadcast]
+      summary: List broadcast history
+      responses:
+        "200": { description: Broadcast history with delivery stats }
+
+  /admin/telegram/analytics:
+    get:
+      tags: [Telegram Analytics]
+      summary: Telegram bot usage analytics
+      parameters:
+        - name: start_date
+          in: query
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Aggregated metrics (registered, active, response time, command frequency)
+
+  /admin/telegram/support:
+    get:
+      tags: [Telegram Support]
+      summary: List support tickets from drivers
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED] }
+        - name: priority
+          in: query
+          schema: { type: string, enum: [LOW, NORMAL, HIGH, URGENT] }
+      responses:
+        "200": { description: Ticket list }
+
+  /admin/telegram/support/{ticketId}:
+    get:
+      tags: [Telegram Support]
+      summary: Get support ticket detail
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Full ticket with driver info }
+    patch:
+      tags: [Telegram Support]
+      summary: Update ticket status or assign
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Ticket updated }
+
+  # =========================================================================
+  # TELEGRAM WEBHOOK (service auth — receives Telegram server push)
+  # =========================================================================
+  /telegram/webhook:
+    post:
+      tags: [Telegram Webhook]
+      summary: Receive all Telegram platform updates
+      description: |
+        Entry point for ALL Telegram updates (messages, commands, callbacks, location).
+        Protected by Telegram secret token header. Acknowledges immediately (200 OK)
+        then processes async via Bull queue. Idempotent via update_id in Redis.
       security:
         - webhookSecret: []
       requestBody:
@@ -847,14 +945,283 @@ paths:
           application/json:
             schema:
               type: object
-              required: [telegram_id, vehicle_id, driver_name, status]
-              properties:
-                telegram_id: { type: string }
-                vehicle_id: { type: string }
-                driver_name: { type: string }
-                status: { type: string, enum: [AVAILABLE, BUSY, OFFLINE] }
+              description: Telegram Update object
       responses:
-        "200": { description: Status updated and published to Redis }
+        "200": { description: Acknowledged immediately }
+        "403": { description: Invalid secret token }
+
+  # =========================================================================
+  # TELEGRAM DRIVER BOT ENDPOINTS (called by bot code, not by Telegram)
+  # =========================================================================
+  /telegram/register:
+    post:
+      tags: [Telegram Bot]
+      summary: Register driver's Telegram account
+      description: Links telegram_id to driver profile after PIN validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [telegram_id, driver_id, pin]
+              properties:
+                telegram_id: { type: integer }
+                driver_id: { type: string }
+                pin: { type: string }
+      responses:
+        "200":
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  driver:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      name: { type: string }
+                      vehicle: { type: string }
+                      status: { type: string }
+        "401": { description: Invalid driver ID or PIN }
+
+  /telegram/status:
+    post:
+      tags: [Telegram Bot]
+      summary: Update driver status
+      description: Sets status to AVAILABLE or OFFLINE. Publishes to Redis for real-time sync.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [telegram_id, status]
+              properties:
+                telegram_id: { type: integer }
+                status: { type: string, enum: [AVAILABLE, OFFLINE] }
+      responses:
+        "200": { description: Status updated }
+        "409": { description: Cannot go offline with active trip }
+
+  /telegram/driver-info:
+    get:
+      tags: [Telegram Bot]
+      summary: Get driver profile
+      parameters:
+        - name: telegram_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Driver profile with vehicle and active trip
+
+  /telegram/assignments/active:
+    get:
+      tags: [Telegram Bot]
+      summary: Get driver's active trip
+      parameters:
+        - name: telegram_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Active assignment details }
+
+  /telegram/assignments/{id}/accept:
+    post:
+      tags: [Telegram Bot]
+      summary: Accept trip assignment
+      description: Sets driver status to BUSY, notifies admin via WebSocket
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Trip accepted with customer details }
+
+  /telegram/assignments/{id}/reject:
+    post:
+      tags: [Telegram Bot]
+      summary: Reject trip assignment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        "200": { description: Trip rejected, driver set to AVAILABLE }
+
+  /telegram/assignments/{id}/start:
+    post:
+      tags: [Telegram Bot]
+      summary: Start trip
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Trip started }
+
+  /telegram/assignments/{id}/complete:
+    post:
+      tags: [Telegram Bot]
+      summary: Complete trip
+      description: Sets driver to AVAILABLE, publishes status change to Redis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Trip completed with summary }
+
+  /telegram/assignments/history:
+    get:
+      tags: [Telegram Bot]
+      summary: Get trip history
+      parameters:
+        - name: telegram_id
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        "200": { description: Paginated completed trips }
+
+  /telegram/earnings/today:
+    get:
+      tags: [Telegram Bot]
+      summary: Today's earnings summary
+      parameters:
+        - name: telegram_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Daily stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  trips_count: { type: integer }
+                  hours_worked: { type: number }
+                  estimated_earnings: { type: number }
+
+  /telegram/earnings/week:
+    get:
+      tags: [Telegram Bot]
+      summary: Weekly earnings summary
+      parameters:
+        - name: telegram_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Weekly stats with daily breakdown }
+
+  /telegram/location:
+    post:
+      tags: [Telegram Bot]
+      summary: Update driver live location
+      description: Stored in Redis with 5-min TTL, not persisted beyond current trip
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [telegram_id, latitude, longitude]
+              properties:
+                telegram_id: { type: integer }
+                latitude: { type: number }
+                longitude: { type: number }
+      responses:
+        "200": { description: Location stored }
+
+  /telegram/emergency:
+    post:
+      tags: [Telegram Bot]
+      summary: Create emergency alert from driver
+      description: |
+        Creates emergency_alerts record, notifies ALL connected admins via WebSocket
+        with sound alert and modal overlay.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [telegram_id]
+              properties:
+                telegram_id: { type: integer }
+                location:
+                  type: object
+                  properties:
+                    lat: { type: number }
+                    lng: { type: number }
+      responses:
+        "200": { description: Alert created, all admins notified }
+
+  /telegram/support:
+    post:
+      tags: [Telegram Bot]
+      summary: Create support ticket from driver
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [telegram_id, message]
+              properties:
+                telegram_id: { type: integer }
+                message: { type: string }
+      responses:
+        "200":
+          description: Ticket created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticket_id: { type: string }
+
+  /telegram/settings:
+    patch:
+      tags: [Telegram Bot]
+      summary: Update driver preferences (language)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [telegram_id]
+              properties:
+                telegram_id: { type: integer }
+                preferred_language: { type: string, enum: [en, km, zh] }
+      responses:
+        "200": { description: Settings updated }
 
 components:
   securitySchemes:

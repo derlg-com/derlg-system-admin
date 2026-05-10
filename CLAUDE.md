@@ -6,6 +6,8 @@
 
 The DerLg System Admin Panel is a standalone administrative web application for managing the DerLg Cambodia travel booking platform. It provides role-based access for four admin roles to manage transportation fleet, hotel inventory, tour guides, bookings, emergency alerts, discount codes, student verifications, and business analytics.
 
+It also includes a **Telegram Transportation Management System** — a Telegram Bot that lets drivers update availability and accept/reject trips from their phones without installing an app, with real-time sync back to the admin panel via Redis pub/sub and WebSocket.
+
 ## Relationship to DerLg Main App
 
 - **DerLg main app** (`/home/rayu/DerLg`) — customer-facing Next.js + NestJS application
@@ -55,6 +57,10 @@ derlg-system-admin/
 │       ├── users/page.tsx      # Admin user management (SUPER_ADMIN only)
 │       ├── audit-logs/page.tsx # Audit trail viewer (SUPER_ADMIN only)
 │       └── ai-monitoring/page.tsx # AI session viewer
+│   ├── telegram/             # NEW: Telegram integration routes
+│   │   ├── broadcast/page.tsx    # Broadcast composer + history
+│   │   ├── analytics/page.tsx    # Bot usage analytics
+│   │   └── support/page.tsx     # Driver support tickets
 ├── components/
 │   ├── layout/AdminLayout.tsx  # Main admin shell component
 │   ├── admin/                  # Feature-specific components (20+ files)
@@ -69,13 +75,26 @@ derlg-system-admin/
 ├── backend_admin/              # NestJS admin API
 │   └── src/                    # Currently scaffold only (default boilerplate)
 ├── docs/
-│   ├── architecture/           # Architecture diagrams
-│   ├── reference/              # DerLg main app reference docs
-│   └── prisma-schema.prisma    # Database schema (admin models)
-├── requirements.md             # 20 requirements with acceptance criteria
-├── design.md                   # Visual/interaction design spec
-├── tasks.md                    # 39 implementation tasks
-└── admin.all.combination.task.md # All specs merged inline
+│   ├── api.yaml                     # OpenAPI 3.1 spec (60+ admin + telegram endpoints)
+│   ├── prisma-schema.prisma         # Database schema (7 admin tables + enums)
+│   ├── architecture/
+│   │   └── admin-architecture.md    # 11 Mermaid diagrams (admin + telegram flows)
+│   ├── reference/                   # DerLg main app reference docs
+│   │   ├── prd.md                   #   Product requirements
+│   │   ├── feature-decisions.md     #   Feature registry
+│   │   ├── architecture-overview.md #   System architecture
+│   │   ├── architecture-data.md     #   Data architecture
+│   │   └── architecture-services.md #   Service boundaries
+│   └── specs/
+│       ├── system-admin/            # Admin panel specs
+│       │   ├── requirements.md      #   20 requirements
+│       │   ├── design.md            #   Component design spec
+│       │   ├── tasks.md             #   39 implementation tasks
+│       │   └── combined.md          #   All specs merged inline
+│       └── telegram/                # Telegram transport management specs
+│           ├── requirements.md      #   18 requirements
+│           ├── design.md            #   Bot interface + module design
+│           └── integration.md       #   Admin-telegram integration summary
 ```
 
 ## API Envelope Convention
@@ -109,20 +128,24 @@ The Axios interceptor in `lib/api.ts` unwraps this automatically — frontend co
 
 - **Frontend**: All 13 admin routes scaffolded with placeholder pages. Dashboard has full implementation with mock data fallback. Login page complete with auth flow. WebSocket hook functional. API client complete with all 16 typed endpoint groups.
 - **Backend**: Scaffold only — default NestJS boilerplate. No admin-specific controllers or services yet.
-- **Database**: Schema designed (4 admin tables defined in `docs/prisma-schema.prisma`), not yet migrated.
-- **Docs**: Requirements (20 items), design, 39 tasks, and architecture diagrams complete.
+- **Database**: Schema designed (7 admin tables: drivers, driver_assignments, vehicle_maintenance, admin_users, support_tickets, broadcast_messages, backups). Not yet migrated.
+- **Docs**: Full spec suite — 20 admin requirements, 18 Telegram requirements, 11 architecture diagrams, 60+ endpoint OpenAPI spec. Telegram integration specs copied.
 
 ## Implementation Roadmap
 
-See `tasks.md` for the full 39-task breakdown. High-level phases:
+See `docs/specs/system-admin/tasks.md` for 39 tasks and `docs/specs/telegram/requirements.md` for Telegram phases. High-level phases:
 
-1. Backend: Database migration + admin module scaffold + auth guards
-2. Backend: Driver + Vehicle + Maintenance CRUD + Telegram webhook
-3. Backend: Hotel + Guide + Booking admin endpoints
-4. Backend: Emergency + Customer + Discount + Analytics endpoints
-5. Frontend: Replace placeholders with real API-connected pages
-6. Integration: WebSocket pub/sub, real-time dashboard
-7. Quality: Tests, i18n, polish
+1. **Foundation:** Database migration (7 admin tables) + admin module scaffold + auth guards
+2. **Transportation core:** Driver CRUD + Vehicle CRUD + Maintenance CRUD
+3. **Telegram integration:** Webhook handler, driver registration (PIN auth), bot commands (/online, /offline, /status)
+4. **Trip lifecycle:** Driver assignments with Telegram notification, accept/reject flow, start/complete tracking
+5. **Fleet visibility:** Real-time dashboard via Redis pub/sub, WebSocket driver status sync, live location tracking
+6. **Inventory:** Hotel + Guide + Booking admin CRUD endpoints
+7. **Operations:** Emergency alerts + Customer profiles + Discount codes + Student verifications
+8. **Communication:** Broadcast messaging (Bull queue), support ticket management
+9. **Intelligence:** Analytics + Admin user management + Audit logs + Data export
+10. **Frontend:** Replace placeholder pages with API-connected components, Telegram broadcast/support/analytics pages
+11. **Quality:** Tests (unit + integration + E2E), i18n (EN/KH/ZH), Sentry monitoring
 
 ## Key Design Decisions
 
@@ -131,3 +154,6 @@ See `tasks.md` for the full 39-task breakdown. High-level phases:
 3. **Role-based guards** — Two-layer: AdminGuard (JWT role check) + AdminRoleGuard (admin_users.admin_role)
 4. **Redis for real-time** — Telegram webhook → Redis pub/sub → WebSocket broadcast to admin UI
 5. **No direct DB from frontend** — all data access through NestJS backend
+6. **Telegram bot for driver workflow** — No native app needed; drivers use familiar Telegram via PIN auth, inline keyboards, and real-time WebSocket sync
+7. **Async processing via Bull** — Broadcast messages and assignment timeouts use Redis-backed job queues
+8. **Multi-language from day one** — Bot responses and admin UI in EN, KH, ZH

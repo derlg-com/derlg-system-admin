@@ -1,3 +1,9 @@
+# DerLg System Admin — Full Prisma Schema
+
+> **Note:** This schema defines admin-owned tables that share the PostgreSQL database
+> with the DerLg main app. Models from DerLg main (users, bookings, transportation_vehicles,
+> hotels, guides, etc.) are referenced but defined in the main app's schema.
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,7 +15,7 @@ datasource db {
 }
 
 // ===========================================================================
-// ADMIN-SPECIFIC ENUMS
+// ADMIN ENUMS
 // ===========================================================================
 
 enum DriverStatus {
@@ -31,9 +37,23 @@ enum AdminRole {
   SUPPORT_AGENT
 }
 
+enum AssignmentStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
 enum AuditActionType {
   DRIVER_ASSIGNMENT
-  DRIVER_STATUS_UPDATE
+  DRIVER_STATUS_CHANGE
+  DRIVER_TELEGRAM_REGISTERED
+  DRIVER_ASSIGNED_VIA_TELEGRAM
+  TRIP_ACCEPTED
+  TRIP_REJECTED
+  TRIP_STARTED
+  TRIP_COMPLETED
   BOOKING_MODIFICATION
   BOOKING_CANCELLATION
   PRICING_CHANGE
@@ -43,53 +63,88 @@ enum AuditActionType {
   LOYALTY_ADJUSTMENT
   DISCOUNT_CODE_CHANGE
   ADMIN_USER_CHANGE
+  BROADCAST_SENT
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum BroadcastStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
 }
 
 // ===========================================================================
 // ADMIN MODELS
-//
-// These models are owned by the admin panel. They JOIN to the DerLg main
-// app's tables (users, bookings, transportation_vehicles, hotels, guides, etc.)
-// via foreign keys. The main app tables are managed by DerLg's NestJS backend.
 // ===========================================================================
 
+// ---- Driver (Telegram + Fleet Management) ----
+
 model Driver {
-  id               String       @id @default(uuid()) @db.Uuid
-  driverName       String       @map("driver_name") @db.VarChar(255)
-  driverId         String       @unique @map("driver_id") @db.VarChar(50)
-  telegramId       String       @unique @map("telegram_id") @db.VarChar(100)
-  phone            String       @db.VarChar(20)
-  vehicleId        String?      @map("vehicle_id") @db.Uuid
-  status           DriverStatus @default(OFFLINE)
-  lastStatusUpdate DateTime     @default(now()) @map("last_status_update")
-  createdAt        DateTime     @default(now()) @map("created_at")
-  updatedAt        DateTime     @updatedAt @map("updated_at")
+  id                    String       @id @default(uuid()) @db.Uuid
+  driverName            String       @map("driver_name") @db.VarChar(255)
+  driverId              String       @unique @map("driver_id") @db.VarChar(50)
+  telegramId            BigInt?      @unique @map("telegram_id")
+  authPin               String       @map("auth_pin") @db.VarChar(255) // bcrypt hashed
+  phone                 String       @db.VarChar(20)
+  vehicleId             String?      @map("vehicle_id") @db.Uuid
+  status                DriverStatus @default(OFFLINE)
+  preferredLanguage     String       @default("en") @map("preferred_language") @db.VarChar(5)
+  lastStatusUpdate      DateTime     @default(now()) @map("last_status_update") @db.Timestamptz
+  lastTelegramActivity  DateTime?    @map("last_telegram_activity") @db.Timestamptz
+  createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime     @updatedAt @map("updated_at") @db.Timestamptz
 
-  assignments DriverAssignment[]
+  assignments      DriverAssignment[]
+  supportTickets   SupportTicket[]
+  emergencyAlerts  EmergencyAlert[]
 
+  @@index([telegramId])
   @@index([status])
   @@index([vehicleId])
-  @@index([telegramId])
   @@map("drivers")
 }
 
-model DriverAssignment {
-  id                  String   @id @default(uuid()) @db.Uuid
-  driverId            String   @map("driver_id") @db.Uuid
-  bookingId           String   @map("booking_id") @db.Uuid
-  vehicleId           String   @map("vehicle_id") @db.Uuid
-  assignmentTimestamp DateTime @default(now()) @map("assignment_timestamp")
-  completionTimestamp DateTime? @map("completion_timestamp")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+// ---- Driver Assignment ----
 
-  driver Driver @relation(fields: [driverId], references: [id])
+model DriverAssignment {
+  id                      String           @id @default(uuid()) @db.Uuid
+  driverId                String           @map("driver_id") @db.Uuid
+  bookingId               String           @map("booking_id") @db.Uuid
+  vehicleId               String           @map("vehicle_id") @db.Uuid
+  status                  AssignmentStatus @default(PENDING)
+  assignmentTimestamp     DateTime         @default(now()) @map("assignment_timestamp") @db.Timestamptz
+  responseTimestamp       DateTime?        @map("response_timestamp") @db.Timestamptz
+  tripStartTime           DateTime?        @map("trip_start_time") @db.Timestamptz
+  completionTimestamp     DateTime?        @map("completion_timestamp") @db.Timestamptz
+  rejectionReason         String?          @map("rejection_reason") @db.Text
+  telegramNotified        Boolean          @default(false) @map("telegram_notified")
+  createdAt               DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+
+  driver  Driver  @relation(fields: [driverId], references: [id])
 
   @@index([driverId])
   @@index([bookingId])
+  @@index([status])
   @@index([driverId, completionTimestamp])
   @@map("driver_assignments")
 }
+
+// ---- Vehicle Maintenance ----
 
 model VehicleMaintenance {
   id               String            @id @default(uuid()) @db.Uuid
@@ -100,8 +155,8 @@ model VehicleMaintenance {
   maintenanceCost  Decimal?          @map("maintenance_cost") @db.Decimal(10, 2)
   maintenanceNotes String?           @map("maintenance_notes") @db.Text
   status           MaintenanceStatus @default(SCHEDULED)
-  createdAt        DateTime          @default(now()) @map("created_at")
-  updatedAt        DateTime          @updatedAt @map("updated_at")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz
 
   @@index([vehicleId])
   @@index([status])
@@ -109,26 +164,71 @@ model VehicleMaintenance {
   @@map("vehicle_maintenance")
 }
 
+// ---- Admin User ----
+
 model AdminUser {
   id          String    @id @default(uuid()) @db.Uuid
   userId      String    @unique @map("user_id") @db.Uuid
   adminRole   AdminRole @map("admin_role")
   permissions Json?
   isActive    Boolean   @default(true) @map("is_active")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   @@index([userId])
   @@index([adminRole])
   @@map("admin_users")
 }
 
+// ---- Support Ticket (Telegram) ----
+
+model SupportTicket {
+  id          String         @id @default(uuid()) @db.Uuid
+  ticketId    String         @unique @map("ticket_id") @db.VarChar(20)
+  driverId    String         @map("driver_id") @db.Uuid
+  message     String         @db.Text
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority @default(NORMAL)
+  assignedTo  String?        @map("assigned_to") @db.Uuid
+  resolvedAt  DateTime?      @map("resolved_at") @db.Timestamptz
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  driver Driver @relation(fields: [driverId], references: [id])
+
+  @@index([driverId])
+  @@index([status])
+  @@map("support_tickets")
+}
+
+// ---- Broadcast Message ----
+
+model BroadcastMessage {
+  id           String          @id @default(uuid()) @db.Uuid
+  messageId    String          @unique @map("message_id") @db.VarChar(50)
+  content      String          @db.Text
+  imageUrl     String?         @map("image_url") @db.VarChar(500)
+  targetFilter Json            @map("target_filter")
+  sentBy       String          @map("sent_by") @db.Uuid
+  status       BroadcastStatus @default(PENDING)
+  sentCount    Int             @default(0) @map("sent_count")
+  failedCount  Int             @default(0) @map("failed_count")
+  completedAt  DateTime?       @map("completed_at") @db.Timestamptz
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([sentBy])
+  @@index([status])
+  @@map("broadcast_messages")
+}
+
+// ---- Backup ----
+
 model Backup {
   id               String   @id @default(uuid()) @db.Uuid
   backupFileUrl    String   @map("backup_file_url") @db.Text
   backupSizeBytes  BigInt?  @map("backup_size_bytes")
   createdByAdminId String   @map("created_by_admin_id") @db.Uuid
-  createdAt        DateTime @default(now()) @map("created_at")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@index([createdAt])
   @@map("backups")
