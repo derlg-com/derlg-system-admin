@@ -59,4 +59,25 @@ export class MinioService implements OnModuleInit {
   getBucketName(): string {
     return this.bucket;
   }
+
+  async uploadFile(
+    objectName: string,
+    buffer: Buffer,
+    size: number,
+    mimeType: string,
+  ): Promise<{ url: string; etag: string }> {
+    await this.ensureBucket();
+    const etag = await this.client.putObject(
+      this.bucket,
+      objectName,
+      buffer,
+      size,
+      { 'Content-Type': mimeType },
+    );
+    const protocol = process.env.MINIO_USE_SSL === 'true' ? 'https' : 'http';
+    const port = process.env.MINIO_PORT || '9000';
+    const endpoint = process.env.MINIO_ENDPOINT || 'localhost';
+    const url = `${protocol}://${endpoint}:${port}/${this.bucket}/${objectName}`;
+    return { url, etag: etag.etag };
+  }
 }
