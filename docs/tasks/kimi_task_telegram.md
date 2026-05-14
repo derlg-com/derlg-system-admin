@@ -39,8 +39,8 @@ The Telegram Bot enables transportation drivers to manage availability and trip 
   - `src/telegram/telegram.controller.ts` — webhook endpoint controller
   - `src/telegram/telegram.service.ts` — core bot orchestration
 - [ ] 2.2 Create handlers:
-  - `src/telegram/handlers/command.handler.ts` — command routing (/start, /online, /offline, /status, /mytrip, /history, /emergency, /support, /language, /help)
-  - `src/telegram/handlers/callback.handler.ts` — inline button callbacks (accept/reject trip, start/complete trip, language selection)
+  - `src/telegram/handlers/command.handler.ts` — command routing (/start, /online, /offline, /status, /mytrip, /history, /emergency, /support, /help)
+  - `src/telegram/handlers/callback.handler.ts` — inline button callbacks (accept/reject trip, start/complete trip)
   - `src/telegram/handlers/location.handler.ts` — location update processing
   - `src/telegram/handlers/message.handler.ts` — text message processing (registration credentials, support descriptions)
 - [ ] 2.3 Create services:
@@ -49,7 +49,6 @@ The Telegram Bot enables transportation drivers to manage availability and trip 
   - `src/telegram/services/assignment.service.ts` — trip assignment operations (accept, reject, start, complete)
   - `src/telegram/services/broadcast.service.ts` — broadcast message handling
   - `src/telegram/services/registration.service.ts` — driver registration flow
-  - `src/telegram/services/i18n.service.ts` — translation management (i18next)
 - [ ] 2.4 Create DTOs:
   - `src/telegram/dto/webhook-update.dto.ts` — Telegram Update object validation
   - `src/telegram/dto/register-driver.dto.ts` — registration payload
@@ -121,7 +120,7 @@ The Telegram Bot enables transportation drivers to manage availability and trip 
 - [ ] 4.5 Session state management:
   - Redis key: `telegram_session:{telegram_id}`
   - Type: Hash, TTL: 1 hour
-  - Fields: state, data, language, last_command
+  - Fields: state, data, last_command
 
 ---
 
@@ -278,7 +277,7 @@ The Telegram Bot enables transportation drivers to manage availability and trip 
 
 - [ ] 10.1 `/help` command:
   - Display list of available commands with descriptions
-  - Include: /start, /online, /offline, /status, /mytrip, /history, /emergency, /support, /language
+  - Include: /start, /online, /offline, /status, /mytrip, /history, /emergency, /support
 - [ ] 10.2 `/emergency` command:
   - Call POST /v1/telegram/emergency with telegram_id, location (if shared), timestamp
   - Backend creates emergency_alerts record with driver_id, alert_type DRIVER_EMERGENCY, status ACTIVE
@@ -299,93 +298,70 @@ The Telegram Bot enables transportation drivers to manage availability and trip 
 
 ---
 
-## T11: Multi-Language Support
-**Source:** Telegram Requirement 8
-
-- [ ] 11.1 Language detection:
-  - On first registration, detect Telegram client language from `telegram_user.language_code`
-  - "km" → Khmer, "zh" → Chinese, otherwise → English
-  - Store in drivers.preferred_language column
-- [ ] 11.2 `/language` command:
-  - Display inline keyboard:
-    - [🇰🇭 ខ្មែរ (Khmer)]
-    - [🇬🇧 English]
-    - [🇨🇳 中文 (Chinese)]
-  - On selection: call PATCH /v1/telegram/settings with preferred_language
-  - Bot responds in new language: "✅ Language changed to {language}"
-- [ ] 11.3 Translation files:
-  - `src/telegram/locales/en.json` — English
-  - `src/telegram/locales/km.json` — Khmer
-  - `src/telegram/locales/zh.json` — Chinese
-  - Include all command responses, button labels, error messages, notification templates
-- [ ] 11.4 i18next setup:
-  - Use i18next with fs-backend for JSON file loading
-  - Fallback to English if translation missing
-  - All subsequent bot messages in driver's preferred_language
 
 ---
 
-## T12: Admin Broadcast Messaging
+## T11: Admin Broadcast Messaging
 **Source:** Telegram Requirement 10
 
-- [ ] 12.1 Admin broadcast API:
+- [ ] 11.1 Admin broadcast API:
   - `POST /v1/admin/telegram/broadcast` — message, image_url, target_filter, admin_user_id
   - `GET /v1/admin/telegram/broadcasts` — broadcast history
-- [ ] 12.2 Target audience options:
+- [ ] 11.2 Target audience options:
   - All Drivers
   - Online Drivers Only
   - Offline Drivers
   - Drivers by Vehicle Type (VAN, BUS, TUK_TUK)
-- [ ] 12.3 Broadcast processing:
+- [ ] 11.3 Broadcast processing:
   - Backend queries drivers table based on target_filter
   - Create broadcast_messages record with status PENDING
   - Queue broadcast job in Bull queue with telegram_ids array
   - Send at rate of 30 messages per second (Telegram API limit)
   - Update sent_count/failed_count after each message
   - Update status to COMPLETED when done
-- [ ] 12.4 Delivery tracking:
+- [ ] 11.4 Delivery tracking:
   - Admin Panel displays broadcast history with sent_count, failed_count, status
   - Real-time WebSocket updates: `broadcast:status` event
   - Bot displays broadcasts with header: "📢 Message from DerLg Dispatch:"
-- [ ] 12.5 Audit logging:
+- [ ] 11.5 Audit logging:
   - Create audit_logs record: action_type = BROADCAST_SENT, including message content and recipient count
 
 ---
 
-## T13: Bot Message Templates
+## T12: Bot Message Templates
 **Source:** Telegram design.md
 
-- [ ] 13.1 Registration templates:
+- [ ] 12.1 Registration templates:
   - Welcome message (first-time /start)
   - Registration success confirmation
-- [ ] 13.2 Status update templates:
+- [ ] 12.2 Status update templates:
   - Online confirmation
   - Offline confirmation
   - Offline error (active trip)
-- [ ] 13.3 Trip assignment templates:
+- [ ] 12.3 Trip assignment templates:
   - New trip assignment notification
   - Trip accepted confirmation
   - Trip rejected confirmation
   - Auto-reject notification
-- [ ] 13.4 Trip management templates:
+- [ ] 12.4 Trip management templates:
   - Trip started confirmation
   - Trip completed summary
   - No active trips message
-- [ ] 13.5 Emergency & support templates:
+- [ ] 12.5 Emergency & support templates:
   - Emergency alert sent confirmation
   - Support ticket created confirmation
-- [ ] 13.6 Help & system templates:
+- [ ] 12.6 Help & system templates:
   - /help command response
   - Language changed confirmation
   - Error messages (invalid command, rate limit, unauthorized)
-- [ ] 13.7 All templates in 3 languages (EN, KM, ZH)
+- [ ] 12.7 All templates in 3 languages (EN, KM, ZH)
 
 ---
 
 ## T14: Integration with Admin Panel
 **Source:** INTEGRATION.md
 
-- [ ] 14.1 WebSocket events FROM backend TO admin panel:
+- [ ] 13.1 WebSocket events FROM backend TO admin panel:
   - `driver:status:changed` — driver uses /online or /offline → update DriverList status badge
   - `driver:registered` — driver completes /start → update registration badge to ✅
   - `assignment:response` — driver accepts/rejects trip → update DriverAssignmentPanel status
@@ -393,12 +369,12 @@ The Telegram Bot enables transportation drivers to manage availability and trip 
   - `driver:emergency` — driver sends /emergency → show modal alert with sound
   - `driver:support:ticket` — driver creates support ticket → add to SupportTicketList
   - `broadcast:status` — broadcast delivery progress → update sent_count in BroadcastHistory
-- [ ] 14.2 Shared database tables:
+- [ ] 13.2 Shared database tables:
   - `drivers` — created by admin panel, used by both
   - `driver_assignments` — created by admin panel, updated by bot
   - `support_tickets` — created by bot, managed by admin
   - `broadcast_messages` — created by admin, delivered by bot
-- [ ] 14.3 Redis data structures:
+- [ ] 13.3 Redis data structures:
   - `telegram_session:{telegram_id}` — Hash, TTL 1 hour
   - `driver_location:{driver_id}` — Hash, TTL 5 minutes
   - `telegram_rate:{telegram_id}` — String counter, TTL 1 minute
@@ -409,23 +385,23 @@ The Telegram Bot enables transportation drivers to manage availability and trip 
 ## T15: Testing & Monitoring
 **Source:** Telegram requirements.md Testing Strategy
 
-- [ ] 15.1 Unit tests for backend services:
+- [ ] 14.1 Unit tests for backend services:
   - `telegram.service.spec.ts` — register driver, reject invalid PIN
   - `driver-status.service.spec.ts` — update status, prevent offline with active trip
   - `assignment.service.spec.ts` — accept/reject/complete trip
   - `broadcast.service.spec.ts` — queue and send broadcasts
-- [ ] 15.2 Integration tests for webhook processing:
+- [ ] 14.2 Integration tests for webhook processing:
   - Test command handlers (/start, /online, /status)
   - Test callback handlers (accept/reject buttons)
   - Test message handlers (registration credentials)
-- [ ] 15.3 Manual testing checklist:
+- [ ] 14.3 Manual testing checklist:
   - Bot responds to all commands within 2 seconds
   - Status updates reflect in Admin Panel within 5 seconds
   - Assignment notifications delivered within 5 seconds
   - Auto-reject works after 5 minutes
   - Rate limiting blocks after 30 req/min
   - Location updates received every 60 seconds
-- [ ] 15.4 Load testing:
+- [ ] 14.4 Load testing:
   - Test with 100+ concurrent drivers
   - Verify broadcast sends at 30 msg/sec
   - Check Redis pub/sub performance

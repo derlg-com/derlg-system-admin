@@ -85,7 +85,7 @@ This specification defines a Telegram Bot system that integrates with the DerLg 
 - **Database:** Supabase PostgreSQL (shared)
 - **Real-Time:** Redis pub/sub + WebSocket
 - **Queue:** Bull (Redis-based)
-- **i18n:** i18next (EN/KH/ZH)
+- **Language**: English only
 
 ## Architecture Highlights
 

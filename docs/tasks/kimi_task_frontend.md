@@ -7,7 +7,7 @@
 
 ## F1: Install Missing Dependencies
 
-- [ ] 1.1 Add `next-intl` for multi-language support (EN/ZH/KM)
+- [ ] 1.1 Install required dependencies (shadcn/ui components, leaflet, etc.)
 - [ ] 1.2 Add `leaflet` + `react-leaflet` for emergency location maps
 - [ ] 1.3 Add `socket.io-client` for WebSocket connection
 - [ ] 1.4 Install shadcn/ui components: Table, Dialog, DropdownMenu, Form, Input, Button, Badge, Card, Select, DatePicker, Tabs, Accordion, AlertDialog, Toast, Avatar, Skeleton, Pagination, Calendar, Popover, Checkbox, Textarea, Command, Separator
@@ -49,7 +49,7 @@
 - [ ] 3.1 Create `AdminLayout` component (`components/layout/AdminLayout.tsx`):
   - Responsive layout with sidebar and top bar
   - Sidebar navigation with role-based menu filtering
-  - Top bar with admin user info, language selector, notification bell
+  - Top bar with admin user info, notification bell
   - WebSocket connection status indicator
   - Collapsible sidebar for mobile
 - [ ] 3.2 Create `AdminSidebar` component (`components/admin/AdminSidebar.tsx`):
@@ -145,7 +145,7 @@
 - [ ] 6.7 **Telegram-enhanced DriverForm** (from Telegram design):
   - `auth_pin` field (4-digit PIN, auto-generated)
   - `telegram_id` field (read-only)
-  - `preferred_language` dropdown (EN/KH/ZH)
+  - `admin_role` dropdown (SUPER_ADMIN, OPERATIONS_MANAGER, FLEET_MANAGER, SUPPORT_AGENT)
   - "Copy Credentials" button
 
 ---
@@ -429,30 +429,13 @@
 
 ---
 
-## F18: Multi-Language Support
-**Source:** Combined Task 35
-
-- [ ] 18.1 Create admin translation files:
-  - `public/locales/en/admin.json` — English translations
-  - `public/locales/zh/admin.json` — Chinese translations
-  - `public/locales/km/admin.json` — Khmer translations
-  - Include translations for all UI labels, buttons, messages, notifications
-- [ ] 18.2 Integrate next-intl in admin pages:
-  - Use `useTranslations` hook in all admin components
-  - Load translations from admin.json namespace
-  - Format dates and times using Intl.DateTimeFormat with selected locale
-- [ ] 18.3 Implement language preference:
-  - Add language selector to admin top bar
-  - Update Zustand language store on selection
-  - Save preferred_language to backend via PATCH /v1/users/profile
-  - Load preferred language on login from users table
 
 ---
 
-## F19: AI Monitoring Page
+## F18: AI Monitoring Page
 **Source:** Combined Task 19 (AI requirement)
 
-- [ ] 19.1 Create AI Monitoring page: `app/(admin)/admin/ai-monitoring/page.tsx`
+- [ ] 18.1 Create AI Monitoring page: `app/(admin)/admin/ai-monitoring/page.tsx`
   - Display AI-assisted booking flag in booking list
   - Filter bookings by metadata.ai_assisted
   - Display AI session_id from booking metadata
@@ -477,7 +460,7 @@
     - Table with columns: timestamp, message, target, sent, failed, status
     - Delivery status tracking
 - [ ] 20.2 Create Telegram Analytics page: `app/(admin)/admin/telegram/analytics/page.tsx`
-  - Metrics: total registered drivers, active drivers (24h), avg response time, command usage, language distribution
+  - Metrics: total registered drivers, active drivers (24h), avg response time, command usage
   - Charts: daily active drivers (line), command usage (pie), assignment acceptance rate (bar)
 - [ ] 20.3 Create Support Tickets page: `app/(admin)/admin/telegram/support/page.tsx`
   - Real-time ticket notifications via WebSocket

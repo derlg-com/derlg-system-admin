@@ -903,7 +903,7 @@ The implementation adds 4 new database tables (drivers, driver_assignments, vehi
     - Include translations for all UI labels, buttons, messages, notifications
     - _Requirements: 17.1, 17.2, 17.6_
 
-  - [ ] 35.2 Integrate next-intl in admin pages
+  
     - Use useTranslations hook in all admin components
     - Load translations from admin.json namespace
     - Format dates and times using Intl.DateTimeFormat with selected locale
@@ -912,7 +912,7 @@ The implementation adds 4 new database tables (drivers, driver_assignments, vehi
   - [ ] 35.3 Implement language preference
     - Add language selector to admin top bar
     - Update Zustand language store on selection
-    - Save preferred_language to backend via PATCH /v1/users/profile
+
     - Load preferred language on login from users table
     - _Requirements: 17.2, 17.3, 17.4_
 
@@ -1053,7 +1053,7 @@ The implementation adds 4 new database tables (drivers, driver_assignments, vehi
 This implementation plan covers the complete System Admin Panel feature with 39 major tasks and 150+ sub-tasks. The implementation follows a modular approach:
 
 1. **Backend (Tasks 1-20)**: Database schema, NestJS admin module with 13 controllers and services, Telegram webhook, WebSocket gateway, and Redis pub/sub integration
-2. **Frontend (Tasks 21-35)**: Next.js admin route group with 40+ components, real-time WebSocket integration, role-based access control, and multi-language support
+2. **Frontend (Tasks 21-35)**: Next.js admin route group with 40+ components, real-time WebSocket integration, role-based access control
 3. **Testing (Task 38)**: Comprehensive unit, integration, and end-to-end tests
 4. **Documentation and Deployment (Task 39)**: API documentation, user guides, and production deployment
 

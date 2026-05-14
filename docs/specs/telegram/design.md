@@ -20,7 +20,7 @@ The Telegram Transportation Management System is a Telegram Bot interface that i
 - **Queue System**: Bull (Redis-based) for async job processing
 - **Real-Time**: Redis pub/sub + WebSocket to Admin Panel
 - **Database**: Supabase PostgreSQL (shared with admin panel)
-- **i18n**: i18next with JSON translation files
+- **Language**: English only
 - **Security**: Telegram webhook secret token validation
 
 ## Architecture
@@ -164,7 +164,7 @@ backend/src/telegram/
 │   ├── assignment.service.ts       # Trip assignment operations
 │   ├── broadcast.service.ts        # Broadcast message handling
 │   ├── registration.service.ts     # Driver registration flow
-│   └── i18n.service.ts             # Translation management
+
 │
 ├── dto/
 │   ├── webhook-update.dto.ts       # Telegram Update object
@@ -254,7 +254,7 @@ useEffect(() => {
 **New Fields:**
 - `auth_pin` (4-digit PIN, auto-generated or manual)
 - `telegram_id` (read-only, populated after driver registers)
-- `preferred_language` (dropdown: EN/KH/ZH)
+- `phone` (VARCHAR)
 
 **PIN Generation:**
 ```typescript
@@ -763,7 +763,7 @@ CREATE TABLE drivers (
   auth_pin VARCHAR(255) NOT NULL,         -- bcrypt hashed PIN
   vehicle_id UUID REFERENCES transportation_vehicles(id),
   status VARCHAR(20) DEFAULT 'UNAVAILABLE' CHECK (status IN ('AVAILABLE', 'UNAVAILABLE', 'BUSY')),
-  preferred_language VARCHAR(5) DEFAULT 'en' CHECK (preferred_language IN ('en', 'km', 'zh')),
+
   last_status_update TIMESTAMP WITH TIME ZONE,
   last_telegram_activity TIMESTAMP WITH TIME ZONE,  -- New field for bot activity
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -1139,7 +1139,7 @@ export class CommandHandler {
   constructor(
     private readonly botSender: BotSenderService,
     private readonly driverStatus: DriverStatusService,
-    private readonly i18n: I18nService,
+
   ) {}
 
   async handleCommand(
@@ -1173,7 +1173,7 @@ export class CommandHandler {
     if (!driver) {
       await this.botSender.sendMessage(
         telegramId,
-        this.i18n.t('errors.not_registered', { lng: language }),
+        'You are not registered. Please contact your fleet manager.',
       );
       return;
     }
@@ -1182,13 +1182,13 @@ export class CommandHandler {
     
     await this.botSender.sendMessage(
       telegramId,
-      this.i18n.t('status.online_success', { lng: language }),
+      '✅ You are now online and available for trip assignments.',
       {
         reply_markup: {
           inline_keyboard: [
             [
               { 
-                text: this.i18n.t('buttons.go_offline', { lng: language }), 
+                text: 'Go Offline', 
                 callback_data: 'status:offline' 
               },
             ],

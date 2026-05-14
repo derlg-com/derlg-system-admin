@@ -21,7 +21,7 @@ The System Admin Panel is a comprehensive administrative interface built as a ne
 - **Backend**: NestJS with new admin module
 - **Database**: Supabase PostgreSQL (shared with main app)
 - **Maps**: Leaflet.js for emergency location tracking
-- **i18n**: next-intl (EN/ZH/KM)
+- **Language**: English only
 
 ## Architecture
 

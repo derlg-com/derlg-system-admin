@@ -2,17 +2,16 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { LogOut, Wifi, WifiOff, Globe } from 'lucide-react'
+import { LogOut, Wifi, WifiOff } from 'lucide-react'
 import { AdminSidebar } from '@/components/admin/AdminSidebar'
 import { NotificationBell } from '@/components/admin/NotificationBell'
-import { useAuthStore, useUIStore } from '@/store/adminStore'
+import { useAuthStore } from '@/store/adminStore'
 import { useAdminWebSocket } from '@/hooks/useAdminWebSocket'
 import { authApi } from '@/lib/api'
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { user, isAuthenticated, _hasHydrated, clearAuth } = useAuthStore()
-  const { language, setLanguage } = useUIStore()
   const { connectionStatus } = useAdminWebSocket(isAuthenticated)
 
   useEffect(() => {
@@ -72,21 +71,6 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               <span style={{ color: connectionStatus === 'connected' ? 'var(--success)' : 'var(--danger)' }}>
                 {connectionStatus}
               </span>
-            </div>
-
-            {/* Language selector */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Globe size={14} color="var(--text-muted)" />
-              <select
-                className="form-select"
-                value={language}
-                onChange={(e) => setLanguage(e.target.value as 'EN' | 'KH' | 'ZH')}
-                style={{ padding: '4px 8px', fontSize: 12, width: 'auto', border: 'none', background: 'transparent', color: 'var(--text-secondary)' }}
-              >
-                <option value="EN">English</option>
-                <option value="KH">ភាសាខ្មែរ</option>
-                <option value="ZH">中文</option>
-              </select>
             </div>
 
             <NotificationBell />
