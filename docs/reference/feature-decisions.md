@@ -115,7 +115,7 @@
 | F81 | Festival Calendar with Alerts | v1.2 | P2 | Planned | Shared | — | Cultural content hook |
 | F82 | Interactive Maps (Leaflet + OpenStreetMap) | MVP | P1 | Planned | FE | F80 | Visual trip planning |
 | F83 | Offline Map Caching (Service Worker) | v1.1 | P1 | Planned | FE | F82 | Essential for rural Cambodia connectivity |
-| F84 | Multi-Language Content (EN / ZH / KM) | MVP | P0 | Planned | Shared | — | Primary market requirement |
+
 | F85 | SEO + Open Graph / Structured Data | v1.1 | P2 | Planned | FE | — | Organic traffic |
 
 ### Progressive Web App

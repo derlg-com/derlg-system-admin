@@ -20,7 +20,7 @@
 - **PWA shell:** Service worker for offline caching, manifest for installability.
 - **Client state:** Zustand stores (auth, booking, chat, language).
 - **Server state:** React Query for data fetching, caching, and background updates.
-- **Internationalization:** `next-intl` routing and translations (EN / ZH / KM).
+
 - **Maps:** Leaflet.js with OpenStreetMap tiles; offline tile caching in `public/offline/maps/`.
 
 ### Key Libraries
@@ -31,7 +31,7 @@
 | shadcn/ui | Base UI components |
 | Zustand | Client-side state |
 | React Query | Server-state synchronization |
-| next-intl | i18n routing and translations |
+
 | Leaflet.js | Interactive maps |
 | React Hook Form + Zod | Form handling and validation |
 

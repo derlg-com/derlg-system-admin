@@ -19,7 +19,7 @@ Mobile-first PWA that combines traditional booking with conversational AI to hel
 | Segment | Needs |
 |---------|-------|
 | International tourists | Trip discovery, hotel/transport booking, emergency assistance |
-| Chinese tourists (primary market) | Multi-language support (ZH), local payment methods (Bakong/ABA QR) |
+| Chinese tourists (primary market) | Local payment methods (Bakong/ABA QR) |
 | Students | Verified discounts on transportation and hotels |
 | Safety-conscious travelers | Offline maps, emergency alerts, real-time notifications |
 
@@ -97,8 +97,8 @@ flowchart TB
 2. **AI-assisted booking ("Vibe Booking")**  
    Users can describe a trip in natural language; the AI agent translates intent into structured bookings.
 
-3. **Multi-language support (EN / ZH / KM)**  
-   All user-facing content is localized via `next-intl`. The AI agent detects and responds in the user's language.
+3. **Language: English only**  
+   All user-facing content is in English.
 
 4. **Offline-capable where possible**  
    Map tiles, static content, and recent booking data are cached locally. Critical read paths work without connectivity.
@@ -132,7 +132,7 @@ This architecture is split into focused documents. Read them in order, or jump t
 | UI & styling | Tailwind CSS v4, shadcn/ui |
 | State management | Zustand (client), React Query (server) |
 | Maps | Leaflet.js + OpenStreetMap |
-| i18n | next-intl (EN / ZH / KM) |
+
 | Backend framework | NestJS 11 |
 | Backend language | TypeScript 5.7 |
 | ORM | Prisma |

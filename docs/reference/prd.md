@@ -74,7 +74,7 @@ DerLg combines traditional travel-booking inventory with an AI concierge that lo
 6. **Student Discount Verification** — ID-based discount eligibility
 7. **Loyalty Points Program** — Earn/redeem points on bookings
 8. **Offline Maps** — Cached OpenStreetMap tiles for offline navigation
-9. **Multi-Language Support** — EN / ZH / KM across all content
+9. **Language** — English only
 10. **Festival Calendar** — Cultural events with trip tie-ins
 
 ---
@@ -149,7 +149,7 @@ DerLg combines traditional travel-booking inventory with an AI concierge that lo
 
 ### 7.8 Notifications (F70–F73)
 
-- **F70 — Email Confirmations:** Resend SMTP. Multi-language templates.
+- **F70 — Email Confirmations:** Resend SMTP. English templates.
 - **F71 — Push Notifications (FCM):** Booking confirmations, payment status, travel reminders.
 - **F72 — Travel Reminders (v1.1):** 24-hour pre-departure notification.
 - **F73 — In-App Notification Center (v1.1):** Consolidated inbox with read/unread status.
@@ -160,7 +160,7 @@ DerLg combines traditional travel-booking inventory with an AI concierge that lo
 - **F81 — Festival Calendar (v1.2):** Upcoming cultural events. Auto-generated discount codes during festivals.
 - **F82 — Interactive Maps:** Leaflet.js + OpenStreetMap. Markers for places, hotels, emergency services, bookings.
 - **F83 — Offline Map Caching (v1.1):** Service Worker caches tiles. Province-based downloadable map packs.
-- **F84 — Multi-Language Content:** All content stored with EN/KH/ZH variants. `Accept-Language` header driven.
+
 - **F85 — SEO + Open Graph (v1.1):** SSR for public pages, structured data (JSON-LD), sitemap.xml.
 
 ### 7.10 Progressive Web App (F90–F93)

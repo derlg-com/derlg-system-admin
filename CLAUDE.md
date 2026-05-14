@@ -34,6 +34,7 @@ Both share the same **Supabase PostgreSQL database**. The admin app reads from a
 | Database | PostgreSQL (Supabase) |
 | Realtime | WebSocket + Redis pub/sub |
 | Date handling | date-fns v4 |
+| Language | English only (no i18n) |
 
 ## Project Structure
 
@@ -145,7 +146,7 @@ See `docs/specs/system-admin/tasks.md` for 39 tasks and `docs/specs/telegram/req
 8. **Communication:** Broadcast messaging (Bull queue), support ticket management
 9. **Intelligence:** Analytics + Admin user management + Audit logs + Data export
 10. **Frontend:** Replace placeholder pages with API-connected components, Telegram broadcast/support/analytics pages
-11. **Quality:** Tests (unit + integration + E2E), i18n (EN/KH/ZH), Sentry monitoring
+11. **Quality:** Tests (unit + integration + E2E), Sentry monitoring
 
 ## Key Design Decisions
 
@@ -156,4 +157,4 @@ See `docs/specs/system-admin/tasks.md` for 39 tasks and `docs/specs/telegram/req
 5. **No direct DB from frontend** — all data access through NestJS backend
 6. **Telegram bot for driver workflow** — No native app needed; drivers use familiar Telegram via PIN auth, inline keyboards, and real-time WebSocket sync
 7. **Async processing via Bull** — Broadcast messages and assignment timeouts use Redis-backed job queues
-8. **Multi-language from day one** — Bot responses and admin UI in EN, KH, ZH
+8. **English only** — All bot responses and admin UI strings are in English

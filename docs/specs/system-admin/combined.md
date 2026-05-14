@@ -168,11 +168,7 @@
 7. 7. THE Admin_Panel SHALL display AI_Agent performance metrics via GET /v1/admin/analytics/ai-performance including average booking creation time and customer satisfaction from reviews table where booking metadata contains ai_assisted true
 
 ## Requirement 17: Multi-Language Support
-
-1. 1. THE Admin_Panel SHALL support English (EN), Chinese (ZH), and Khmer (KM) language interfaces using next-intl library with translation files in public/locales/
 2. 2. WHEN an administrator selects a language preference, THE Admin_Panel SHALL update the Zustand language store and re-render all interface text using the selected locale
-3. 3. THE Admin_Panel SHALL store the administrator's preferred_language in users table via PATCH /v1/users/profile
-4. 4. WHEN an administrator logs in, THE Admin_Panel SHALL load the interface in their preferred_language from users table and initialize next-intl with that locale
 5. 5. THE Admin_Panel SHALL display customer data (name, email, phone, addresses) in the original language without translation
 6. 6. THE Admin_Panel SHALL display system messages, notifications, and UI labels in the administrator's selected language by loading translations from public/locales/{locale}/admin.json
 7. 7. WHEN displaying dates and times, THE Admin_Panel SHALL format according to the selected language locale using Intl.DateTimeFormat with the appropriate locale code
@@ -345,8 +341,6 @@ backend/src/
 - Form to modify booking details
 - Fields: travel_date, end_date, num_adults, num_children, customizations
 - Validation and price recalculation
-
-
 ##
 
 ## BookingTrendChart
@@ -1062,8 +1056,6 @@ frontend/app/
 * **7.7**: 7. THE Admin_Panel SHALL check guide availability by querying bookings table for overlapping date ranges with status CONFIRMED or RESERVED before allowing new assignments
 
 ### Design Patterns
-
-
 ### Implementation
 
 ```
@@ -1568,8 +1560,6 @@ frontend/app/
 * **1.3**: 3. THE Admin_Panel SHALL store admin-specific role permissions (SUPER_ADMIN, OPERATIONS_MANAGER, SUPPORT_AGENT, FLEET_MANAGER) in a new admin_users table linked to users.id
 * **1.4**: 4. WHEN an authenticated user accesses a feature, THE Admin_Panel SHALL verify the user has the required admin role permissions from admin_users table
 * **12.6**: 6. IF the WebSocket connection is lost, THE Admin_Panel SHALL attempt to reconnect every 10 seconds using exponential backoff and display a connection status indicator in the top navigation bar
-* **17.1**: 1. THE Admin_Panel SHALL support English (EN), Chinese (ZH), and Khmer (KM) language interfaces using next-intl library with translation files in public/locales/
-
 ### Design Patterns
 
 * **AdminLayout**:
@@ -1872,8 +1862,6 @@ frontend/app/
 * **7.6**: 6. WHEN filtering guides, THE Admin_Panel SHALL filter by languages array contains value or specialties array contains value
 
 ### Design Patterns
-
-
 ### Implementation
 
 ```
@@ -2215,12 +2203,10 @@ frontend/app/
 ### Sub-steps
 
 * ⬜ 35.1: Create admin translation files
-* ⬜ 35.2: Integrate next-intl in admin pages
+
 * ⬜ 35.3: Implement language preference
 
 ### Requirements
-
-* **17.1**: 1. THE Admin_Panel SHALL support English (EN), Chinese (ZH), and Khmer (KM) language interfaces using next-intl library with translation files in public/locales/
 * **17.2**: 2. WHEN an administrator selects a language preference, THE Admin_Panel SHALL update the Zustand language store and re-render all interface text using the selected locale
 * **17.6**: 6. THE Admin_Panel SHALL display system messages, notifications, and UI labels in the administrator's selected language by loading translations from public/locales/{locale}/admin.json
 
@@ -2372,7 +2358,7 @@ frontend/app/
 * **14.1**: 1. THE Admin_Panel SHALL display a maintenance schedule calendar via GET /v1/admin/maintenance showing all records from vehicle_maintenance table with columns: id, vehicle_id, maintenance_type, scheduled_date, completion_date, maintenance_cost, maintenance_notes, and status (SCHEDULED, IN_MAINTENANCE, COMPLETED)
 * **15.1**: 1. THE Admin_Panel SHALL display a searchable list of customers from users table via GET /v1/admin/customers with columns: id, name, email, phone, role, loyalty_points, is_student, and created_at
 * **16.1**: 1. THE Admin_Panel SHALL display a flag indicating which bookings were created via AI_Agent by checking if the booking was created through POST /v1/ai-tools/create-booking endpoint (tracked via metadata JSON field in bookings table)
-* **17.1**: 1. THE Admin_Panel SHALL support English (EN), Chinese (ZH), and Khmer (KM) language interfaces using next-intl library with translation files in public/locales/
+
 * **18.1**: 1. THE Admin_Panel SHALL allow Super Admin to export booking data via GET /v1/admin/export/bookings with query parameters start_date, end_date, and format (CSV or JSON) returning a downloadable file
 * **19.1**: 1. THE Admin_Panel SHALL display audit logs from audit_logs table via GET /v1/admin/audit-logs with columns: id, admin_user_id, action_type, affected_resource_id, resource_type, changed_fields (JSON), and timestamp
 * **20.1**: 1. THE Admin_Panel SHALL display a dashboard via GET /v1/admin/dashboard showing total_bookings_today (count from bookings table where created_at is today), total_revenue_today (sum of total_usd from bookings where status is CONFIRMED and created_at is today), and active_drivers_count (count from drivers table where status is AVAILABLE or BUSY)
@@ -2431,7 +2417,7 @@ frontend/app/
 * **14.1**: 1. THE Admin_Panel SHALL display a maintenance schedule calendar via GET /v1/admin/maintenance showing all records from vehicle_maintenance table with columns: id, vehicle_id, maintenance_type, scheduled_date, completion_date, maintenance_cost, maintenance_notes, and status (SCHEDULED, IN_MAINTENANCE, COMPLETED)
 * **15.1**: 1. THE Admin_Panel SHALL display a searchable list of customers from users table via GET /v1/admin/customers with columns: id, name, email, phone, role, loyalty_points, is_student, and created_at
 * **16.1**: 1. THE Admin_Panel SHALL display a flag indicating which bookings were created via AI_Agent by checking if the booking was created through POST /v1/ai-tools/create-booking endpoint (tracked via metadata JSON field in bookings table)
-* **17.1**: 1. THE Admin_Panel SHALL support English (EN), Chinese (ZH), and Khmer (KM) language interfaces using next-intl library with translation files in public/locales/
+
 * **18.1**: 1. THE Admin_Panel SHALL allow Super Admin to export booking data via GET /v1/admin/export/bookings with query parameters start_date, end_date, and format (CSV or JSON) returning a downloadable file
 * **19.1**: 1. THE Admin_Panel SHALL display audit logs from audit_logs table via GET /v1/admin/audit-logs with columns: id, admin_user_id, action_type, affected_resource_id, resource_type, changed_fields (JSON), and timestamp
 * **20.1**: 1. THE Admin_Panel SHALL display a dashboard via GET /v1/admin/dashboard showing total_bookings_today (count from bookings table where created_at is today), total_revenue_today (sum of total_usd from bookings where status is CONFIRMED and created_at is today), and active_drivers_count (count from drivers table where status is AVAILABLE or BUSY)
