@@ -1,0 +1,504 @@
+# Frontend Tasks — DerLg System Admin Panel
+
+> Source: `/docs/specs/system-admin/combined.md` + `/docs/specs/telegram/design.md`
+> Status: **All tasks pending (⬜)** — frontend has page shells, API stubs, and Zustand stores, but most components are non-functional placeholders. Missing key dependencies.
+
+---
+
+## F1: Install Missing Dependencies
+
+- [ ] 1.1 Add `next-intl` for multi-language support (EN/ZH/KM)
+- [ ] 1.2 Add `leaflet` + `react-leaflet` for emergency location maps
+- [ ] 1.3 Add `socket.io-client` for WebSocket connection
+- [ ] 1.4 Install shadcn/ui components: Table, Dialog, DropdownMenu, Form, Input, Button, Badge, Card, Select, DatePicker, Tabs, Accordion, AlertDialog, Toast, Avatar, Skeleton, Pagination, Calendar, Popover, Checkbox, Textarea, Command, Separator
+- [ ] 1.5 Verify React 19 compatibility for all installed packages
+
+---
+
+## F2: Shared Admin Components
+**Source:** Combined Task 37
+
+- [ ] 2.1 Create `DataTable` component (`components/shared/DataTable.tsx`):
+  - Reusable table with sorting, filtering, pagination
+  - Props: columns, data, filters, onSort, onFilter, onPageChange
+  - Use shadcn/ui Table components
+  - Responsive design with horizontal scroll on mobile
+- [ ] 2.2 Create `SearchInput` component:
+  - Reusable search input with debounce
+  - Props: placeholder, onSearch, debounceMs
+  - Clear button
+- [ ] 2.3 Create `FilterDropdown` component:
+  - Reusable dropdown for filtering
+  - Props: options, value, onChange, label
+  - Multi-select support
+- [ ] 2.4 Create `ConfirmDialog` component:
+  - Reusable confirmation dialog
+  - Props: title, message, onConfirm, onCancel
+  - Use shadcn/ui AlertDialog
+- [ ] 2.5 Create `ImageUpload` component:
+  - Reusable image upload with preview
+  - Props: onUpload, maxSize, accept
+  - Upload to Supabase Storage
+  - Display upload progress
+
+---
+
+## F3: Admin Layout & Navigation
+**Source:** Combined Task 21
+
+- [ ] 3.1 Create `AdminLayout` component (`components/layout/AdminLayout.tsx`):
+  - Responsive layout with sidebar and top bar
+  - Sidebar navigation with role-based menu filtering
+  - Top bar with admin user info, language selector, notification bell
+  - WebSocket connection status indicator
+  - Collapsible sidebar for mobile
+- [ ] 3.2 Create `AdminSidebar` component (`components/admin/AdminSidebar.tsx`):
+  - Render navigation menu items based on admin role permissions
+  - Highlight active route
+  - Add icons from lucide-react
+  - Filter menu items by role (FLEET_MANAGER sees only drivers/vehicles, SUPPORT_AGENT sees only bookings/customers)
+- [ ] 3.3 Create `NotificationBell` component (`components/admin/NotificationBell.tsx`):
+  - Badge with unread notification count
+  - Dropdown with recent notifications (bookings, driver status, emergencies)
+  - Click to mark as read
+  - Store notifications in Zustand store
+- [ ] 3.4 Create admin route group structure:
+  - `app/(admin)/layout.tsx` with AdminLayout
+  - All admin page routes as specified in design document
+  - Route protection with admin role check
+  - Redirect non-admin users to /home
+
+---
+
+## F4: Authentication & Authorization
+**Source:** Combined Task 36
+
+- [ ] 4.1 Create admin route protection middleware:
+  - Check user.role is ADMIN or SUPPORT
+  - Redirect non-admin users to /home
+  - Fetch admin_role and permissions from backend on login
+  - Store admin permissions in Zustand auth store
+- [ ] 4.2 Implement role-based UI rendering:
+  - Hide/show menu items based on admin_role
+  - Disable actions based on permissions
+  - Show "Access Denied" message for unauthorized features
+- [ ] 4.3 Handle token refresh in admin panel:
+  - Automatically refresh JWT when access token expires (15 min)
+  - Call POST /v1/auth/refresh using refresh token
+  - Update tokens in httpOnly cookies
+  - Maintain session across page navigation
+
+---
+
+## F5: Dashboard Page
+**Source:** Combined Task 22
+
+- [ ] 5.1 Create `DashboardOverview` component (`components/admin/dashboard/DashboardOverview.tsx`):
+  - Fetch dashboard data from GET /v1/admin/dashboard
+  - Display metric cards: bookings today, revenue today, active drivers
+  - Render booking trend chart for past 30 days using recharts
+  - Display pending actions list (unassigned bookings, upcoming maintenance)
+  - Display recent emergency alerts
+  - Implement auto-refresh every 60 seconds using React Query refetchInterval
+- [ ] 5.2 Create `MetricCard` component (`components/admin/dashboard/MetricCard.tsx`):
+  - Reusable card for displaying single metric
+  - Props: title, value, icon, trend (percentage change)
+  - Display trend indicator (up/down arrow with color)
+- [ ] 5.3 Create `BookingTrendChart` component (`components/admin/dashboard/BookingTrendChart.tsx`):
+  - Line chart showing daily booking counts
+  - Use recharts library (LineChart, Line, XAxis, YAxis, Tooltip)
+  - Responsive design
+- [ ] 5.4 Create dashboard page: `app/(admin)/admin/dashboard/page.tsx`
+
+---
+
+## F6: Driver Management Pages
+**Source:** Combined Task 23
+
+- [ ] 6.1 Create `DriverList` component (`components/admin/drivers/DriverList.tsx`):
+  - Fetch drivers from GET /v1/admin/drivers
+  - Data table with columns: name, driver_id, vehicle, status, last_update
+  - Status filter dropdown (AVAILABLE, BUSY, OFFLINE)
+  - Search by name or driver_id
+  - Subscribe to WebSocket for real-time status updates
+  - Add Edit and View Details actions
+- [ ] 6.2 Create `DriverStatusBadge` component (`components/admin/drivers/DriverStatusBadge.tsx`):
+  - Color-coded badge: green (AVAILABLE), yellow (BUSY), gray (OFFLINE)
+  - Pulsing animation for real-time updates
+- [ ] 6.3 Create `DriverForm` component (`components/admin/drivers/DriverForm.tsx`):
+  - Form for creating/editing driver profiles
+  - Fields: driver_name, driver_id, telegram_id, phone, vehicle_id (dropdown)
+  - Use React Hook Form + Zod validation
+  - Submit to POST/PATCH /v1/admin/drivers
+- [ ] 6.4 Create `DriverDetailView` component (`components/admin/drivers/DriverDetailView.tsx`):
+  - Display driver profile information
+  - Show assigned vehicle details
+  - Display assignment history table
+  - Show performance metrics (total trips, average rating)
+- [ ] 6.5 Create driver pages:
+  - `app/(admin)/admin/drivers/page.tsx` with DriverList
+  - `app/(admin)/admin/drivers/[id]/page.tsx` with DriverDetailView
+- [ ] 6.6 **Telegram-enhanced DriverList** (from Telegram design):
+  - Telegram registration status badge (✅ Registered / ❌ Not Registered)
+  - Last seen timestamp from Telegram activity
+  - Filter by Telegram registration status
+- [ ] 6.7 **Telegram-enhanced DriverForm** (from Telegram design):
+  - `auth_pin` field (4-digit PIN, auto-generated)
+  - `telegram_id` field (read-only)
+  - `preferred_language` dropdown (EN/KH/ZH)
+  - "Copy Credentials" button
+
+---
+
+## F7: Vehicle Management Pages
+**Source:** Combined Task 24
+
+- [ ] 7.1 Create `VehicleList` component (`components/admin/vehicles/VehicleList.tsx`):
+  - Fetch vehicles from GET /v1/admin/vehicles
+  - Data table with columns: name, category, capacity, tier, price, assigned_driver
+  - Filters: category (VAN, BUS, TUK_TUK), tier (STANDARD, VIP)
+  - Search by name
+  - Add Edit and Schedule Maintenance actions
+- [ ] 7.2 Create `VehicleForm` component (`components/admin/vehicles/VehicleForm.tsx`):
+  - Form for creating/editing vehicles
+  - Fields: name, category, capacity, tier, price_per_day, price_per_km, features (multi-select), images (upload)
+  - Image upload to Supabase Storage
+  - Use React Hook Form + Zod validation
+- [ ] 7.3 Create `MaintenanceScheduler` component (`components/admin/vehicles/MaintenanceScheduler.tsx`):
+  - Calendar view of scheduled maintenance
+  - Form to schedule new maintenance
+  - Fields: vehicle_id, maintenance_type, scheduled_date, notes
+  - Submit to POST /v1/admin/maintenance
+  - Display reminder notifications for upcoming maintenance (within 3 days)
+- [ ] 7.4 Create `MaintenanceHistory` component (`components/admin/vehicles/MaintenanceHistory.tsx`):
+  - Table of past maintenance records
+  - Columns: date, type, cost, notes, status
+  - Calculate and display total cost
+- [ ] 7.5 Create vehicle pages:
+  - `app/(admin)/admin/vehicles/page.tsx` with VehicleList
+  - `app/(admin)/admin/vehicles/[id]/page.tsx` with vehicle detail and MaintenanceHistory
+
+---
+
+## F8: Booking Management Pages
+**Source:** Combined Task 25
+
+- [ ] 8.1 Create `BookingList` component (`components/admin/bookings/BookingList.tsx`):
+  - Fetch bookings from GET /v1/admin/bookings
+  - Data table with columns: booking_ref, customer, type, status, travel_date, total
+  - Filters: booking_type, status, date range, AI-assisted flag
+  - Search by booking_ref or customer email
+  - Subscribe to WebSocket for real-time new booking notifications
+- [ ] 8.2 Create `BookingDetailView` component (`components/admin/bookings/BookingDetailView.tsx`):
+  - Fetch booking details from GET /v1/admin/bookings/:id
+  - Display complete booking information
+  - Show customer details from users table
+  - Show trip/hotel/vehicle/guide details
+  - Display payment status and history
+  - Include DriverAssignmentPanel component
+  - Add modification and cancellation actions
+- [ ] 8.3 Create `DriverAssignmentPanel` component (`components/admin/bookings/DriverAssignmentPanel.tsx`):
+  - Dropdown to select available driver from GET /v1/admin/drivers?status=AVAILABLE
+  - Display vehicle capacity validation
+  - Assign button calling POST /v1/admin/assignments
+  - Show current assignment if exists
+  - Display error if driver not available (409 Conflict)
+- [ ] 8.4 Create `BookingModificationForm` component (`components/admin/bookings/BookingModificationForm.tsx`):
+  - Form to modify booking details
+  - Fields: travel_date, end_date, num_adults, num_children, customizations
+  - Validation and price recalculation
+  - Submit to PATCH /v1/admin/bookings/:id
+- [ ] 8.5 Create booking pages:
+  - `app/(admin)/admin/bookings/page.tsx` with BookingList
+  - `app/(admin)/admin/bookings/[id]/page.tsx` with BookingDetailView
+- [ ] 8.6 **Telegram-enhanced assignment** (from Telegram design):
+  - Filter drivers by AVAILABLE + telegram_id NOT NULL
+  - Notification sent indicator
+  - Real-time response status (pending/accepted/rejected)
+  - Countdown timer (5 minutes)
+
+---
+
+## F9: Hotel Management Pages
+**Source:** Combined Task 26
+
+- [ ] 9.1 Create `HotelList` component (`components/admin/hotels/HotelList.tsx`):
+  - Fetch hotels from GET /v1/admin/hotels
+  - Data table with columns: name, location, rating, room_count
+  - Search by name or location
+  - Add Edit and Manage Rooms actions
+- [ ] 9.2 Create `HotelForm` component (`components/admin/hotels/HotelForm.tsx`):
+  - Form for creating/editing hotels
+  - Fields: name, description, location (JSON with lat/lng), images, rating, amenities, check_in_time, check_out_time, cancellation_policy
+  - Location picker using Leaflet.js map
+  - Image upload to Supabase Storage
+- [ ] 9.3 Create `RoomManagement` component (`components/admin/hotels/RoomManagement.tsx`):
+  - List of rooms for a hotel from GET /v1/admin/hotels/:id/rooms
+  - Add/Edit/Delete room actions
+  - Display room availability calendar
+- [ ] 9.4 Create `RoomForm` component (`components/admin/hotels/RoomForm.tsx`):
+  - Form for creating/editing rooms
+  - Fields: name, description, capacity, price_per_night, images, amenities
+  - Image upload to Supabase Storage
+  - Submit to POST/PATCH /v1/admin/hotels/:hotelId/rooms/:roomId
+- [ ] 9.5 Create hotel pages:
+  - `app/(admin)/admin/hotels/page.tsx` with HotelList
+  - `app/(admin)/admin/hotels/[id]/page.tsx` with hotel detail
+  - `app/(admin)/admin/hotels/[id]/rooms/page.tsx` with RoomManagement
+
+---
+
+## F10: Tour Guide Management Pages
+**Source:** Combined Task 27
+
+- [ ] 10.1 Create `GuideList` component (`components/admin/guides/GuideList.tsx`):
+  - Fetch guides from GET /v1/admin/guides
+  - Data table with columns: name, languages, specialties, rating, price
+  - Filters: languages (multi-select), specialties (multi-select)
+  - Add Edit and View Details actions
+- [ ] 10.2 Create `GuideForm` component (`components/admin/guides/GuideForm.tsx`):
+  - Form for creating/editing guides
+  - Fields: name, bio, profile_picture, languages (multi-select), specialties (multi-select), experience_years, certifications, price_per_hour, price_per_day
+  - Profile picture upload to Supabase Storage
+- [ ] 10.3 Create `GuideDetailView` component (`components/admin/guides/GuideDetailView.tsx`):
+  - Display guide profile information
+  - Show assignment history from bookings table
+  - Display performance metrics (total assignments, average rating)
+  - Show availability calendar
+- [ ] 10.4 Create guide pages:
+  - `app/(admin)/admin/guides/page.tsx` with GuideList
+  - `app/(admin)/admin/guides/[id]/page.tsx` with GuideDetailView
+
+---
+
+## F11: Emergency Alert Management Pages
+**Source:** Combined Task 28
+
+- [ ] 11.1 Create `EmergencyAlertList` component (`components/admin/emergency/EmergencyAlertList.tsx`):
+  - Fetch alerts from GET /v1/admin/emergency
+  - Data table with columns: alert_type, customer, location, status, time
+  - Filters: status (SENT, ACKNOWLEDGED, RESOLVED), alert_type
+  - Urgent visual styling for SENT alerts
+  - Subscribe to WebSocket for new emergency alerts
+  - Play sound notification for new alerts using browser Notification API
+- [ ] 11.2 Create `EmergencyDetailView` component (`components/admin/emergency/EmergencyDetailView.tsx`):
+  - Fetch alert details from GET /v1/admin/emergency/:id
+  - Display alert details (type, message, timestamp)
+  - Show customer contact information
+  - Show assigned driver contact (if applicable)
+  - Render EmergencyMap component with location
+  - Add Acknowledge and Resolve action buttons
+  - Include resolution notes textarea
+- [ ] 11.3 Create `EmergencyMap` component (`components/admin/emergency/EmergencyMap.tsx`):
+  - Leaflet.js map showing alert location (latitude, longitude)
+  - Add marker with alert type icon
+  - Display nearby hotels/hospitals/police stations
+- [ ] 11.4 Create emergency pages:
+  - `app/(admin)/admin/emergency/page.tsx` with EmergencyAlertList
+  - `app/(admin)/admin/emergency/[id]/page.tsx` with EmergencyDetailView
+
+---
+
+## F12: Customer Support Pages
+**Source:** Combined Task 29
+
+- [ ] 12.1 Create `CustomerList` component (`components/admin/customers/CustomerList.tsx`):
+  - Fetch customers from GET /v1/admin/customers
+  - Data table with columns: name, email, phone, loyalty_points, is_student
+  - Search by name, email, or phone
+  - Add View Profile action
+- [ ] 12.2 Create `CustomerProfileView` component (`components/admin/customers/CustomerProfileView.tsx`):
+  - Fetch customer details from GET /v1/admin/customers/:id
+  - Display customer information
+  - Show booking history table
+  - Display loyalty points balance and transaction history
+  - Show reviews and feedback
+  - Display emergency alerts history
+  - Include loyalty points adjustment form
+- [ ] 12.3 Create customer pages:
+  - `app/(admin)/admin/customers/page.tsx` with CustomerList
+  - `app/(admin)/admin/customers/[id]/page.tsx` with CustomerProfileView
+
+---
+
+## F13: Discount Code Management Pages
+**Source:** Combined Task 30
+
+- [ ] 13.1 Create `DiscountCodeList` component (`components/admin/discounts/DiscountCodeList.tsx`):
+  - Fetch discount codes from GET /v1/admin/discounts
+  - Data table with columns: code, discount_percentage, valid_from, valid_until, usage_count, max_usage, is_active
+  - Add Edit and Deactivate actions
+- [ ] 13.2 Create `DiscountCodeForm` component (`components/admin/discounts/DiscountCodeForm.tsx`):
+  - Form for creating/editing discount codes
+  - Fields: code, discount_percentage, valid_from, valid_until, max_usage
+  - Validate code uniqueness and date range validity
+  - Submit to POST/PATCH /v1/admin/discounts
+- [ ] 13.3 Create `StudentVerificationQueue` component (`components/admin/discounts/StudentVerificationQueue.tsx`):
+  - Fetch verifications from GET /v1/admin/student-verifications?status=PENDING
+  - List with columns: student_name, submitted_at, status
+  - Add Review action
+- [ ] 13.4 Create `StudentVerificationReview` component (`components/admin/discounts/StudentVerificationReview.tsx`):
+  - Display uploaded student ID and selfie images from Supabase Storage
+  - Side-by-side image comparison
+  - Add Approve and Reject buttons with confirmation
+  - Include rejection reason textarea
+  - Submit to PATCH /v1/admin/student-verifications/:id
+- [ ] 13.5 Create discount pages:
+  - `app/(admin)/admin/discounts/page.tsx` with DiscountCodeList
+  - `app/(admin)/admin/discounts/student-verifications/page.tsx` with StudentVerificationQueue
+
+---
+
+## F14: Analytics and Reporting Pages
+**Source:** Combined Task 31
+
+- [ ] 14.1 Create `AnalyticsDashboard` component (`components/admin/analytics/AnalyticsDashboard.tsx`):
+  - Fetch analytics data from multiple endpoints
+  - Display revenue charts by booking type using RevenueChart component
+  - Show booking statistics (total, by status, cancellation rate)
+  - Display driver performance metrics using PerformanceMetrics component
+  - Show popular destinations chart
+  - Display hotel occupancy rate
+  - Show guide utilization rate
+  - Add date range selector
+  - Add export button calling GET /v1/admin/analytics/export
+- [ ] 14.2 Create `RevenueChart` component (`components/admin/analytics/RevenueChart.tsx`):
+  - Bar chart showing revenue by booking type
+  - Use recharts library (BarChart, Bar, XAxis, YAxis, Tooltip, Legend)
+  - Responsive design
+- [ ] 14.3 Create `PerformanceMetrics` component (`components/admin/analytics/PerformanceMetrics.tsx`):
+  - Table of driver/guide performance
+  - Columns: name, total_trips, average_rating, revenue_generated
+  - Sortable columns
+- [ ] 14.4 Create analytics page: `app/(admin)/admin/analytics/page.tsx`
+
+---
+
+## F15: Admin User Management Pages
+**Source:** Combined Task 32
+
+- [ ] 15.1 Create `AdminUserList` component (`components/admin/users/AdminUserList.tsx`):
+  - Fetch admin users from GET /v1/admin/users
+  - Data table with columns: name, email, admin_role, permissions, is_active
+  - Add Edit Role and Deactivate actions
+  - Only accessible to SUPER_ADMIN role
+- [ ] 15.2 Create `AdminUserForm` component (`components/admin/users/AdminUserForm.tsx`):
+  - Form for creating/editing admin users
+  - Fields: email, name, admin_role (dropdown), permissions (checkboxes)
+  - Role-based permission presets
+  - Submit to POST/PATCH /v1/admin/users
+- [ ] 15.3 Create admin user page:
+  - `app/(admin)/admin/users/page.tsx` with AdminUserList
+  - Add loading and error states
+  - Restrict access to SUPER_ADMIN only
+
+---
+
+## F16: Audit Log Viewer Page
+**Source:** Combined Task 33
+
+- [ ] 16.1 Create `AuditLogViewer` component (`components/admin/audit/AuditLogViewer.tsx`):
+  - Fetch audit logs from GET /v1/admin/audit-logs
+  - Data table with columns: timestamp, admin_user, action_type, resource_type, affected_resource_id
+  - Filters: date range, admin_user, action_type
+  - Add expandable rows showing changed_fields JSON
+  - Add export button calling GET /v1/admin/audit-logs/export
+- [ ] 16.2 Create audit log page:
+  - `app/(admin)/admin/audit-logs/page.tsx` with AuditLogViewer
+  - Add loading and error states
+  - Restrict access to SUPER_ADMIN only
+
+---
+
+## F17: WebSocket Integration
+**Source:** Combined Task 34
+
+- [ ] 17.1 Enhance `useAdminWebSocket` hook (`hooks/useAdminWebSocket.ts`):
+  - Connection status UI indicator in top bar
+  - Reconnect with exponential backoff (10s, 20s, 40s, max 60s)
+  - Subscribe to all event types: DRIVER_STATUS_UPDATE, BOOKING_CREATED, EMERGENCY_ALERT, DRIVER_ASSIGNMENT
+- [ ] 17.2 Integrate WebSocket in AdminLayout:
+  - Display connection status indicator in top bar
+  - Show reconnecting message when connection lost
+- [ ] 17.3 Implement real-time updates in components:
+  - Update DriverList when DRIVER_STATUS_UPDATE received
+  - Update BookingList when BOOKING_CREATED received
+  - Show urgent notification when EMERGENCY_ALERT received
+  - Update dashboard metrics when events received
+  - Use React Query cache invalidation for data refresh
+
+---
+
+## F18: Multi-Language Support
+**Source:** Combined Task 35
+
+- [ ] 18.1 Create admin translation files:
+  - `public/locales/en/admin.json` — English translations
+  - `public/locales/zh/admin.json` — Chinese translations
+  - `public/locales/km/admin.json` — Khmer translations
+  - Include translations for all UI labels, buttons, messages, notifications
+- [ ] 18.2 Integrate next-intl in admin pages:
+  - Use `useTranslations` hook in all admin components
+  - Load translations from admin.json namespace
+  - Format dates and times using Intl.DateTimeFormat with selected locale
+- [ ] 18.3 Implement language preference:
+  - Add language selector to admin top bar
+  - Update Zustand language store on selection
+  - Save preferred_language to backend via PATCH /v1/users/profile
+  - Load preferred language on login from users table
+
+---
+
+## F19: AI Monitoring Page
+**Source:** Combined Task 19 (AI requirement)
+
+- [ ] 19.1 Create AI Monitoring page: `app/(admin)/admin/ai-monitoring/page.tsx`
+  - Display AI-assisted booking flag in booking list
+  - Filter bookings by metadata.ai_assisted
+  - Display AI session_id from booking metadata
+  - View session conversation history from GET /v1/admin/ai-sessions/:sessionId
+  - Show AI booking success rate
+  - Display validation error details from metadata
+  - Allow manual correction via PATCH /v1/admin/bookings/:id
+
+---
+
+## F20: Telegram Admin Pages
+**Source:** Telegram design.md
+
+- [ ] 20.1 Create Telegram Broadcast page: `app/(admin)/admin/telegram/broadcast/page.tsx`
+  - `BroadcastComposer` component:
+    - Message editor with rich text
+    - Image upload for broadcast
+    - Audience selector: All Drivers, Online Only, Offline, By Vehicle Type (VAN/BUS/TUK_TUK)
+    - Preview before send
+    - Send button calling POST /v1/admin/telegram/broadcast
+  - `BroadcastHistory` component:
+    - Table with columns: timestamp, message, target, sent, failed, status
+    - Delivery status tracking
+- [ ] 20.2 Create Telegram Analytics page: `app/(admin)/admin/telegram/analytics/page.tsx`
+  - Metrics: total registered drivers, active drivers (24h), avg response time, command usage, language distribution
+  - Charts: daily active drivers (line), command usage (pie), assignment acceptance rate (bar)
+- [ ] 20.3 Create Support Tickets page: `app/(admin)/admin/telegram/support/page.tsx`
+  - Real-time ticket notifications via WebSocket
+  - Status and priority filters
+  - Ticket assignment to support agents
+
+---
+
+## F21: Frontend Testing
+**Source:** Combined Task 38
+
+- [ ] 21.1 Test DriverList component with real-time updates
+- [ ] 21.2 Test BookingDetailView with driver assignment
+- [ ] 21.3 Test EmergencyAlertList with notifications
+- [ ] 21.4 Test AdminLayout with role-based navigation
+- [ ] 21.5 Use React Testing Library and Jest
+
+---
+
+## F22: Documentation
+**Source:** Combined Task 39
+
+- [ ] 22.1 Write admin panel user guide
+- [ ] 22.2 Write Telegram bot onboarding guide for drivers
