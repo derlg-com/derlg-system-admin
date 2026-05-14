@@ -9,7 +9,7 @@
 **Source:** Combined Task 1
 
 - [ ] 1.1 Add new Prisma models for admin functionality:
-  - `Driver` — id, driver_id, driver_name, telegram_id, phone, auth_pin, vehicle_id, status (AVAILABLE/UNAVAILABLE/BUSY), preferred_language, last_status_update, last_telegram_activity
+  - `Driver` — id, driver_id, driver_name, telegram_id, phone, auth_pin, vehicle_id, status (AVAILABLE/UNAVAILABLE/BUSY), last_status_update, last_telegram_activity
   - `DriverAssignment` — id, driver_id, booking_id, vehicle_id, status (PENDING/ACCEPTED/REJECTED/COMPLETED/CANCELLED), assignment_timestamp, response_timestamp, trip_start_time, completion_timestamp, rejection_reason, telegram_notification_sent
   - `VehicleMaintenance` — id, vehicle_id, maintenance_type, scheduled_date, completion_date, maintenance_cost, maintenance_notes, status (SCHEDULED/IN_MAINTENANCE/COMPLETED)
   - `AdminUser` — id, user_id, admin_role (SUPER_ADMIN/OPERATIONS_MANAGER/SUPPORT_AGENT/FLEET_MANAGER), permissions (JSON), is_active
@@ -471,7 +471,7 @@
   - Create emergency_alerts / support_tickets records
   - Notify Admin Panel via WebSocket
 - [ ] 22.8 Settings endpoint:
-  - `PATCH /v1/telegram/settings` — telegram_id, preferred_language
+  - `PATCH /v1/telegram/settings` — telegram_id, settings
 - [ ] 22.9 Broadcast endpoints:
   - `POST /v1/admin/telegram/broadcast` — message, image_url, target_filter
   - `GET /v1/admin/telegram/broadcasts`
@@ -479,7 +479,6 @@
   - Track sent_count / failed_count
 - [ ] 22.10 Telegram module folder structure:
   - `handlers/`: command.handler.ts, callback.handler.ts, location.handler.ts, message.handler.ts
-  - `services/`: bot-sender.service.ts, driver-status.service.ts, assignment.service.ts, broadcast.service.ts, registration.service.ts, i18n.service.ts
   - `dto/`: webhook-update.dto.ts, register-driver.dto.ts, status-update.dto.ts, assignment-action.dto.ts, location-update.dto.ts, broadcast-message.dto.ts
   - `guards/`: telegram-auth.guard.ts, webhook-secret.guard.ts
   - `jobs/`: broadcast.processor.ts, assignment-timeout.processor.ts, location-cleanup.processor.ts

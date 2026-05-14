@@ -177,15 +177,15 @@ The Telegram Transportation Management System is a Telegram Bot interface that e
 
 1. WHEN a driver first registers, THE bot SHALL detect Telegram client language from telegram_user.language_code
 2. IF language_code is "km", THE bot SHALL set default language to Khmer; if "zh", set to Chinese; otherwise set to English
-3. THE bot SHALL store language preference in drivers.preferred_language column
+
 4. WHEN a driver sends `/language` command, THE bot SHALL display inline keyboard with options: [🇰🇭 ខ្មែរ] [🇬🇧 English] [🇨🇳 中文]
-5. WHEN driver selects a language, THE bot SHALL call Backend_API PATCH /v1/telegram/settings with telegram_id and preferred_language
-6. THE Backend_API SHALL update drivers.preferred_language and confirm change
+
+
 7. THE bot SHALL respond in the newly selected language: "✅ Language changed to {language}"
-8. ALL subsequent bot messages SHALL be displayed in the driver's preferred_language
+
 9. THE bot SHALL load translations from JSON files: telegram_bot_km.json, telegram_bot_en.json, telegram_bot_zh.json
 10. THE translation files SHALL include all command responses, button labels, error messages, and notification templates
-11. THE bot SHALL use i18n library (e.g., node-telegram-bot-api with i18next) to manage translations
+
 12. IF a translation is missing for a specific language, THE bot SHALL fall back to English
 
 
@@ -269,7 +269,7 @@ The Telegram Transportation Management System is a Telegram Bot interface that e
 
 1. THE bot interface SHALL be intuitive with clear command descriptions and inline keyboard buttons
 2. THE bot SHALL provide helpful error messages with suggested actions when commands fail
-3. THE bot SHALL support multi-language interface (Khmer, English, Chinese) with automatic language detection
+3. THE bot SHALL use English for all messages
 4. THE bot SHALL use emojis and formatting (bold, italic) to improve message readability
 5. THE bot SHALL provide contextual help with /help command showing all available commands
 
@@ -297,7 +297,7 @@ CREATE TABLE drivers (
   auth_pin VARCHAR(255) NOT NULL, -- bcrypt hashed
   vehicle_id UUID REFERENCES transportation_vehicles(id),
   status VARCHAR(20) DEFAULT 'UNAVAILABLE' CHECK (status IN ('AVAILABLE', 'UNAVAILABLE', 'BUSY')),
-  preferred_language VARCHAR(5) DEFAULT 'en' CHECK (preferred_language IN ('en', 'km', 'zh')),
+
   last_status_update TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -472,7 +472,7 @@ Creates support ticket
 #### PATCH /v1/telegram/settings
 Updates driver preferences
 - **Auth**: Telegram ID validation
-- **Request Body**: `{ telegram_id: number, preferred_language?: string }`
+- **Request Body**: `{ telegram_id: number }`
 - **Response**: `{ success: boolean }`
 
 ### Admin Panel Endpoints (Backend)
@@ -686,8 +686,8 @@ TELEGRAM_BROADCAST_ENABLED=true
     "@bull-board/api": "^5.10.0",
     "@bull-board/nestjs": "^5.10.0",
     "bull": "^4.11.5",
-    "i18next": "^23.7.6",
-    "i18next-fs-backend": "^2.3.0"
+
+
   },
   "devDependencies": {
     "@types/node-telegram-bot-api": "^0.64.0"
@@ -718,7 +718,7 @@ model Driver {
   authPin            String              @map("auth_pin") @db.VarChar(255)
   vehicleId          String?             @map("vehicle_id") @db.Uuid
   status             DriverStatus        @default(UNAVAILABLE)
-  preferredLanguage  String              @default("en") @map("preferred_language") @db.VarChar(5)
+
   lastStatusUpdate   DateTime?           @map("last_status_update") @db.Timestamptz
   createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz
@@ -919,7 +919,7 @@ enum BroadcastStatus {
 - Help documentation accessible in bot
 
 ### Phase 6: Multi-language and Broadcast (Week 6)
-- Set up i18next with translation files (en, km, zh)
+- All bot messages in English
 - Implement /language command for language switching
 - Translate all bot messages to Khmer and Chinese
 - Create broadcast_messages table

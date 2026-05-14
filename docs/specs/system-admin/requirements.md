@@ -247,19 +247,6 @@ The System Admin Panel is a comprehensive web-based administrative interface for
 6. WHEN an AI_Agent booking has validation errors, THE Admin_Panel SHALL display the error details from metadata JSON field and allow Operations Manager to manually correct via PATCH /v1/admin/bookings/:id
 7. THE Admin_Panel SHALL display AI_Agent performance metrics via GET /v1/admin/analytics/ai-performance including average booking creation time and customer satisfaction from reviews table where booking metadata contains ai_assisted true
 
-### Requirement 17: Multi-Language Support
-
-**User Story:** As a Super Admin, I want the Admin Panel to support multiple languages, so that administrators can use the interface in their preferred language.
-
-#### Acceptance Criteria
-
-1. THE Admin_Panel SHALL support English (EN), Chinese (ZH), and Khmer (KM) language interfaces using next-intl library with translation files in public/locales/
-2. WHEN an administrator selects a language preference, THE Admin_Panel SHALL update the Zustand language store and re-render all interface text using the selected locale
-3. THE Admin_Panel SHALL store the administrator's preferred_language in users table via PATCH /v1/users/profile
-4. WHEN an administrator logs in, THE Admin_Panel SHALL load the interface in their preferred_language from users table and initialize next-intl with that locale
-5. THE Admin_Panel SHALL display customer data (name, email, phone, addresses) in the original language without translation
-6. THE Admin_Panel SHALL display system messages, notifications, and UI labels in the administrator's selected language by loading translations from public/locales/{locale}/admin.json
-7. WHEN displaying dates and times, THE Admin_Panel SHALL format according to the selected language locale using Intl.DateTimeFormat with the appropriate locale code
 
 ### Requirement 18: Data Export and Backup
 

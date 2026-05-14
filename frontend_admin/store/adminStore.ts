@@ -8,7 +8,6 @@ interface AdminUser {
   email: string
   role: string
   adminRole?: string
-  preferredLanguage: string
   avatarUrl?: string
 }
 
@@ -120,20 +119,16 @@ export const useNotificationStore = create<NotificationState>((set) => ({
 // ---- UI Store ----
 interface UIState {
   sidebarCollapsed: boolean
-  language: 'EN' | 'KH' | 'ZH'
   toggleSidebar: () => void
   setSidebarCollapsed: (v: boolean) => void
-  setLanguage: (lang: 'EN' | 'KH' | 'ZH') => void
 }
 
 export const useUIStore = create<UIState>()(
   persist(
     (set) => ({
       sidebarCollapsed: false,
-      language: 'EN',
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
-      setLanguage: (lang) => set({ language: lang }),
     }),
     { name: 'derlg-admin-ui' },
   ),
