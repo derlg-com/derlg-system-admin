@@ -1,0 +1,781 @@
+import {
+  Injectable,
+  Logger,
+  ConflictException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import * as bcrypt from 'bcrypt';
+import { DriverStatus, AssignmentStatus, Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
+
+@Injectable()
+export class TelegramService {
+  private readonly logger = new Logger(TelegramService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+    @InjectQueue('broadcast') private readonly broadcastQueue: Queue,
+    @InjectQueue('assignment-timeout')
+    private readonly assignmentTimeoutQueue: Queue,
+  ) {}
+
+  // ─── Webhook Handler ───
+
+  async handleWebhook(update: any) {
+    const telegramId = this.extractTelegramId(update);
+    if (!telegramId) {
+      return null;
+    }
+
+    // Rate limiting: 30 req/min per telegram_id
+    const isAllowed = await this.checkRateLimit(telegramId);
+    if (!isAllowed) {
+      return { text: 'Rate limit exceeded. Please slow down.' };
+    }
+
+    // Idempotency via update_id
+    const isDuplicate = await this.checkDuplicate(update.update_id);
+    if (isDuplicate) {
+      this.logger.debug(`Duplicate update_id: ${update.update_id}`);
+      return null;
+    }
+
+    // Store update_id for deduplication (1 hour TTL)
+    await this.redis
+      .getClient()
+      .setex(`telegram:update:${update.update_id}`, 3600, '1');
+
+    return { telegramId, update };
+  }
+
+  private async checkRateLimit(telegramId: string): Promise<boolean> {
+    const key = `telegram:rate_limit:${telegramId}`;
+    const current = await this.redis.getClient().incr(key);
+
+    if (current === 1) {
+      await this.redis.getClient().expire(key, 60);
+    }
+
+    return current <= 30;
+  }
+
+  private async checkDuplicate(updateId: number): Promise<boolean> {
+    const exists = await this.redis
+      .getClient()
+      .exists(`telegram:update:${updateId}`);
+    return exists === 1;
+  }
+
+  private extractTelegramId(update: any): string | null {
+    if (update.message?.from?.id) {
+      return String(update.message.from.id);
+    }
+    if (update.callback_query?.from?.id) {
+      return String(update.callback_query.from.id);
+    }
+    return null;
+  }
+
+  // ─── Driver Status Update (B21 Webhook) ───
+
+  async handleDriverStatusUpdate(dto: {
+    telegramId: string;
+    vehicleId?: string;
+    driverName: string;
+    status: DriverStatus;
+  }) {
+    const telegramIdBigInt = BigInt(dto.telegramId);
+
+    let driver = await this.prisma.driver.findUnique({
+      where: { telegramId: telegramIdBigInt },
+    });
+
+    if (driver) {
+      const data: Prisma.DriverUpdateInput = {
+        status: dto.status,
+        lastStatusUpdate: new Date(),
+        lastTelegramActivity: new Date(),
+      };
+
+      if (dto.vehicleId) data.vehicleId = dto.vehicleId;
+      if (dto.driverName) data.driverName = dto.driverName;
+
+      driver = await this.prisma.driver.update({
+        where: { id: driver.id },
+        data,
+      });
+
+      this.logger.log(
+        `Driver ${driver.id} status updated to ${dto.status} via Telegram webhook`,
+      );
+    } else {
+      const driverId = `DRV-${dto.telegramId}`;
+      const authPin = Math.floor(100000 + Math.random() * 900000).toString();
+
+      driver = await this.prisma.driver.create({
+        data: {
+          driverName: dto.driverName,
+          driverId,
+          telegramId: telegramIdBigInt,
+          authPin,
+          phone: '',
+          vehicleId: dto.vehicleId || null,
+          status: dto.status,
+          lastStatusUpdate: new Date(),
+          lastTelegramActivity: new Date(),
+        },
+      });
+
+      this.logger.log(
+        `Driver created: ${driver.id} (${driverId}) via Telegram webhook`,
+      );
+    }
+
+    await this.redis.getClient().publish(
+      `driver_status_changed:${driver.id}`,
+      JSON.stringify({
+        driverId: driver.id,
+        status: dto.status,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+
+    await this.prisma.auditLog.create({
+      data: {
+        user_id: null,
+        event_type: 'admin_action',
+        entity_type: 'DRIVER_STATUS_UPDATE',
+        entity_id: driver.id,
+        metadata: {
+          source: 'telegram_webhook',
+          telegramId: dto.telegramId,
+          status: dto.status,
+          vehicleId: dto.vehicleId,
+        },
+      },
+    });
+
+    return {
+      driverId: driver.id,
+      status: driver.status,
+      action: driver.driverId === `DRV-${dto.telegramId}` &&
+        driver.createdAt.getTime() === driver.updatedAt.getTime()
+        ? 'created'
+        : 'updated',
+    };
+  }
+
+  // ─── Driver Registration ───
+
+  async registerDriver(dto: {
+    telegramId: string;
+    driverId: string;
+    pin: string;
+  }) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { driverId: dto.driverId },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    const pinValid = await bcrypt.compare(dto.pin, driver.authPin);
+    if (!pinValid) {
+      throw new UnauthorizedException('Invalid PIN');
+    }
+
+    const updated = await this.prisma.driver.update({
+      where: { id: driver.id },
+      data: {
+        telegramId: BigInt(dto.telegramId),
+        lastTelegramActivity: new Date(),
+      },
+    });
+
+    // Store mapping in Redis (30d TTL)
+    await this.redis.getClient().setex(
+      `telegram_driver:${dto.telegramId}`,
+      30 * 24 * 60 * 60,
+      JSON.stringify(updated),
+    );
+
+    // Create audit log
+    await this.prisma.auditLog.create({
+      data: {
+        user_id: null,
+        event_type: 'admin_action',
+        entity_type: 'DRIVER_TELEGRAM_REGISTERED',
+        entity_id: driver.id,
+        metadata: {
+          telegramId: dto.telegramId,
+          driverId: dto.driverId,
+        },
+      },
+    });
+
+    return {
+      driverId: updated.id,
+      telegramId: dto.telegramId,
+      driverName: updated.driverName,
+    };
+  }
+
+  // ─── Driver Status ───
+
+  async updateDriverStatus(dto: {
+    telegramId: string;
+    status: DriverStatus;
+  }) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { telegramId: BigInt(dto.telegramId) },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    if (dto.status === DriverStatus.OFFLINE) {
+      const activeAssignments = await this.prisma.driverAssignment.count({
+        where: {
+          driverId: driver.id,
+          status: { in: ['PENDING', 'ACCEPTED'] },
+        },
+      });
+
+      if (activeAssignments > 0) {
+        throw new ConflictException(
+          'Cannot go offline while you have active assignments',
+        );
+      }
+    }
+
+    const updated = await this.prisma.driver.update({
+      where: { id: driver.id },
+      data: {
+        status: dto.status,
+        lastStatusUpdate: new Date(),
+        lastTelegramActivity: new Date(),
+      },
+    });
+
+    // Publish to Redis
+    await this.redis.getClient().publish(
+      `driver_status_changed:${driver.id}`,
+      JSON.stringify({
+        driverId: driver.id,
+        status: dto.status,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+
+    // Create audit log
+    await this.prisma.auditLog.create({
+      data: {
+        user_id: null,
+        event_type: 'admin_action',
+        entity_type: 'DRIVER_STATUS_UPDATE',
+        entity_id: driver.id,
+        metadata: {
+          source: 'telegram',
+          telegramId: dto.telegramId,
+          status: dto.status,
+        },
+      },
+    });
+
+    return {
+      driverId: updated.id,
+      status: updated.status,
+    };
+  }
+
+  async getDriverInfo(telegramId: string) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { telegramId: BigInt(telegramId) },
+      include: {
+        assignments: {
+          where: {
+            status: { in: ['PENDING', 'ACCEPTED'] },
+          },
+          orderBy: { assignmentTimestamp: 'desc' },
+          take: 5,
+        },
+      },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    return {
+      id: driver.id,
+      driverId: driver.driverId,
+      driverName: driver.driverName,
+      status: driver.status,
+      vehicleId: driver.vehicleId,
+      phone: driver.phone,
+      activeAssignments: driver.assignments.length,
+      lastStatusUpdate: driver.lastStatusUpdate,
+    };
+  }
+
+  // ─── Trip Assignments ───
+
+  async getActiveAssignments(telegramId: string) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { telegramId: BigInt(telegramId) },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    return this.prisma.driverAssignment.findMany({
+      where: {
+        driverId: driver.id,
+        status: { in: ['PENDING', 'ACCEPTED'] },
+      },
+      orderBy: { assignmentTimestamp: 'desc' },
+      include: {
+        driver: {
+          select: {
+            id: true,
+            driverName: true,
+          },
+        },
+      },
+    });
+  }
+
+  async acceptAssignment(telegramId: string, assignmentId: string) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { telegramId: BigInt(telegramId) },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    const assignment = await this.prisma.driverAssignment.update({
+      where: { id: assignmentId, driverId: driver.id },
+      data: {
+        status: AssignmentStatus.ACCEPTED,
+        responseTimestamp: new Date(),
+      },
+    });
+
+    await this.publishAssignmentEvent(assignment);
+
+    return assignment;
+  }
+
+  async rejectAssignment(
+    telegramId: string,
+    assignmentId: string,
+    reason?: string,
+  ) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { telegramId: BigInt(telegramId) },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    const assignment = await this.prisma.driverAssignment.update({
+      where: { id: assignmentId, driverId: driver.id },
+      data: {
+        status: AssignmentStatus.REJECTED,
+        responseTimestamp: new Date(),
+        rejectionReason: reason || null,
+      },
+    });
+
+    await this.publishAssignmentEvent(assignment);
+
+    // Notify Admin Panel
+    await this.redis.getClient().publish(
+      'driver_assignments',
+      JSON.stringify({
+        event: 'ASSIGNMENT_REJECTED',
+        assignmentId: assignment.id,
+        driverId: assignment.driverId,
+        reason: assignment.rejectionReason,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+
+    return assignment;
+  }
+
+  async startTrip(telegramId: string, assignmentId: string) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { telegramId: BigInt(telegramId) },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    return this.prisma.driverAssignment.update({
+      where: { id: assignmentId, driverId: driver.id },
+      data: {
+        status: AssignmentStatus.ACCEPTED,
+        tripStartTime: new Date(),
+      },
+    });
+  }
+
+  async completeTrip(telegramId: string, assignmentId: string) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { telegramId: BigInt(telegramId) },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    return this.prisma.driverAssignment.update({
+      where: { id: assignmentId, driverId: driver.id },
+      data: {
+        status: AssignmentStatus.COMPLETED,
+        completionTimestamp: new Date(),
+      },
+    });
+  }
+
+  async queueAssignmentTimeout(assignmentId: string) {
+    await this.assignmentTimeoutQueue.add(
+      'timeout',
+      { assignmentId },
+      { delay: 5 * 60 * 1000 }, // 5 minutes
+    );
+  }
+
+  // ─── Trip History & Earnings ───
+
+  async getAssignmentHistory(
+    telegramId: string,
+    limit: number,
+    offset: number,
+  ) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { telegramId: BigInt(telegramId) },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.driverAssignment.findMany({
+        where: { driverId: driver.id },
+        orderBy: { assignmentTimestamp: 'desc' },
+        skip: offset,
+        take: limit,
+        include: {
+          driver: {
+            select: {
+              id: true,
+              driverName: true,
+            },
+          },
+        },
+      }),
+      this.prisma.driverAssignment.count({
+        where: { driverId: driver.id },
+      }),
+    ]);
+
+    return { data, total, limit, offset };
+  }
+
+  async getTodayEarnings(telegramId: string) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { telegramId: BigInt(telegramId) },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const count = await this.prisma.driverAssignment.count({
+      where: {
+        driverId: driver.id,
+        status: 'COMPLETED',
+        completionTimestamp: { gte: today },
+      },
+    });
+
+    return { date: today.toISOString().split('T')[0], trips: count };
+  }
+
+  async getWeekEarnings(telegramId: string) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { telegramId: BigInt(telegramId) },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    weekAgo.setHours(0, 0, 0, 0);
+
+    const count = await this.prisma.driverAssignment.count({
+      where: {
+        driverId: driver.id,
+        status: 'COMPLETED',
+        completionTimestamp: { gte: weekAgo },
+      },
+    });
+
+    return { since: weekAgo.toISOString().split('T')[0], trips: count };
+  }
+
+  // ─── Location ───
+
+  async updateLocation(dto: {
+    telegramId: string;
+    latitude: number;
+    longitude: number;
+  }) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { telegramId: BigInt(dto.telegramId) },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    // Store in Redis with 5-min TTL
+    const locationKey = `driver_location:${driver.id}`;
+    await this.redis.getClient().setex(
+      locationKey,
+      5 * 60,
+      JSON.stringify({
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+
+    // Publish location update
+    await this.redis.getClient().publish(
+      `driver_location_updated:${driver.id}`,
+      JSON.stringify({
+        driverId: driver.id,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+
+    await this.prisma.driver.update({
+      where: { id: driver.id },
+      data: { lastTelegramActivity: new Date() },
+    });
+
+    return { driverId: driver.id, location: { lat: dto.latitude, lng: dto.longitude } };
+  }
+
+  // ─── Emergency & Support ───
+
+  async createEmergencyAlert(dto: {
+    telegramId: string;
+    latitude?: number;
+    longitude?: number;
+  }) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { telegramId: BigInt(dto.telegramId) },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    // Find a system user for the required userId
+    const systemUser = await this.prisma.user.findFirst({
+      select: { id: true },
+    });
+
+    const alert = await this.prisma.emergencyAlert.create({
+      data: {
+        id: crypto.randomUUID(),
+        userId: systemUser?.id || '00000000-0000-0000-0000-000000000000',
+        alertType: 'sos',
+        status: 'triggered',
+        latitude: dto.latitude ?? 0,
+        longitude: dto.longitude ?? 0,
+        driverId: driver.id,
+        notes: `Emergency alert from driver ${driver.driverName} via Telegram`,
+        createdAt: new Date(),
+      },
+    });
+
+    // Notify Admin Panel
+    await this.redis.getClient().publish(
+      'emergency_alerts',
+      JSON.stringify({
+        event: 'DRIVER_EMERGENCY',
+        alertId: alert.id,
+        driverId: driver.id,
+        driverName: driver.driverName,
+        lat: dto.latitude,
+        lng: dto.longitude,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+
+    return alert;
+  }
+
+  async createSupportTicket(dto: {
+    telegramId: string;
+    message: string;
+  }) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { telegramId: BigInt(dto.telegramId) },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    const ticketId = `TIX-${Date.now()}`;
+
+    const ticket = await this.prisma.supportTicket.create({
+      data: {
+        id: crypto.randomUUID(),
+        ticketId,
+        driverId: driver.id,
+        message: dto.message,
+        status: 'OPEN',
+        priority: 'NORMAL',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    return ticket;
+  }
+
+  // ─── Settings ───
+
+  async updateSettings(
+    telegramId: string,
+    settings: { preferredLanguage?: string },
+  ) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { telegramId: BigInt(telegramId) },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    const data: Prisma.DriverUpdateInput = {};
+    if (settings.preferredLanguage) {
+      data.preferredLanguage = settings.preferredLanguage;
+    }
+
+    return this.prisma.driver.update({
+      where: { id: driver.id },
+      data,
+    });
+  }
+
+  // ─── Broadcast ───
+
+  async createBroadcast(dto: {
+    message: string;
+    imageUrl?: string;
+    targetFilter?: Record<string, any>;
+  }) {
+    // Find a system admin to set as sender
+    const admin = await this.prisma.adminUser.findFirst({
+      select: { userId: true },
+    });
+
+    const broadcast = await this.prisma.broadcastMessage.create({
+      data: {
+        id: crypto.randomUUID(),
+        messageId: `BC-${Date.now()}`,
+        content: dto.message,
+        imageUrl: dto.imageUrl || null,
+        targetFilter: dto.targetFilter || {},
+        sentBy: admin?.userId || '00000000-0000-0000-0000-000000000000',
+        status: 'PENDING',
+        sentCount: 0,
+        failedCount: 0,
+        createdAt: new Date(),
+      },
+    });
+
+    // Find target drivers
+    const where: Prisma.DriverWhereInput = {};
+    if (dto.targetFilter?.status) {
+      where.status = dto.targetFilter.status;
+    }
+
+    const drivers = await this.prisma.driver.findMany({
+      where,
+      select: { telegramId: true, id: true },
+    });
+
+    const targets = drivers
+      .filter((d) => d.telegramId !== null)
+      .map((d) => ({
+        chatId: String(d.telegramId),
+        message: dto.message,
+        driverId: d.id,
+      }));
+
+    // Queue broadcast job
+    await this.broadcastQueue.add('send', {
+      broadcastId: broadcast.id,
+      targets,
+    });
+
+    return {
+      broadcastId: broadcast.id,
+      targetCount: targets.length,
+      status: 'QUEUED',
+    };
+  }
+
+  async getBroadcasts() {
+    return this.prisma.broadcastMessage.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+  }
+
+  // ─── Helpers ───
+
+  private async publishAssignmentEvent(assignment: any) {
+    try {
+      await this.redis.getClient().publish(
+        'driver_assignments',
+        JSON.stringify({
+          assignmentId: assignment.id,
+          driverId: assignment.driverId,
+          status: assignment.status,
+          timestamp: new Date().toISOString(),
+        }),
+      );
+    } catch (err) {
+      this.logger.warn(`Failed to publish assignment event: ${err.message}`);
+    }
+  }
+}

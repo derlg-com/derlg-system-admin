@@ -46,4 +46,26 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       return { status: 'error', response: error.message };
     }
   }
+
+  async publish(channel: string, message: string): Promise<number> {
+    return this.client.publish(channel, message);
+  }
+
+  async subscribe(
+    channel: string | string[],
+    callback: (channel: string, message: string) => void,
+  ): Promise<void> {
+    const subscriber = this.client.duplicate();
+    await subscriber.subscribe(...(Array.isArray(channel) ? channel : [channel]));
+    subscriber.on('message', callback);
+  }
+
+  async psubscribe(
+    pattern: string | string[],
+    callback: (pattern: string, channel: string, message: string) => void,
+  ): Promise<void> {
+    const subscriber = this.client.duplicate();
+    await subscriber.psubscribe(...(Array.isArray(pattern) ? pattern : [pattern]));
+    subscriber.on('pmessage', callback);
+  }
 }
