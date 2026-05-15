@@ -51,7 +51,7 @@ The DerLg System Admin Panel is a role-based administrative interface for managi
      ┌──────────┐   ┌──────────┐   ┌──────────────┐
      │ Supabase │   │  Redis   │   │ Telegram Bot │
      │  (PG)    │   │(Upstash) │   │  (external)  │
-     │(cloud)   │   │(cloud)   │   │              │
+     │(cloud)   │   │(local)   │   │              │
      └──────────┘   └──────────┘   └──────────────┘
 
      ┌──────────────────────────────────────────┐
