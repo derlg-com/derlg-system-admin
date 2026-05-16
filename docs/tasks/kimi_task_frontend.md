@@ -64,27 +64,36 @@
 ## F3: Admin Layout & Navigation
 **Source:** Combined Task 21
 
-- [ ] 3.1 Create `AdminLayout` component (`components/layout/AdminLayout.tsx`):
+- [x] 3.1 Create `AdminLayout` component (`components/layout/AdminLayout.tsx`):
   - Responsive layout with sidebar and top bar
-  - Sidebar navigation with role-based menu filtering
+  - Mobile hamburger menu with overlay backdrop for sidebar
+  - Auto-collapse sidebar on mobile, close on navigation
   - Top bar with admin user info, notification bell
-  - WebSocket connection status indicator
-  - Collapsible sidebar for mobile
-- [ ] 3.2 Create `AdminSidebar` component (`components/admin/AdminSidebar.tsx`):
+  - WebSocket connection status indicator (connected/disconnected with color)
+  - Logout button
+  - Zustand hydration guard (spinner while rehydrating)
+- [x] 3.2 Create `AdminSidebar` component (`components/admin/AdminSidebar.tsx`):
   - Render navigation menu items based on admin role permissions
-  - Highlight active route
-  - Add icons from lucide-react
+  - Highlight active route with primary color and indicator bar
+  - Icons from lucide-react for all 13 nav items
   - Filter menu items by role (FLEET_MANAGER sees only drivers/vehicles, SUPPORT_AGENT sees only bookings/customers)
-- [ ] 3.3 Create `NotificationBell` component (`components/admin/NotificationBell.tsx`):
-  - Badge with unread notification count
-  - Dropdown with recent notifications (bookings, driver status, emergencies)
+  - Collapsible sidebar with expand/collapse button
+  - User info section at bottom
+  - Mobile-friendly with onNavigate callback to close mobile sidebar
+- [x] 3.3 Create `NotificationBell` component (`components/admin/NotificationBell.tsx`):
+  - Badge with unread notification count (shadcn/ui Badge)
+  - Dropdown with recent notifications using shadcn/ui DropdownMenu
+  - Notification types: BOOKING, DRIVER_STATUS, EMERGENCY, SYSTEM with icons
   - Click to mark as read
+  - Mark all read and clear all actions
+  - Relative timestamps via date-fns
   - Store notifications in Zustand store
-- [ ] 3.4 Create admin route group structure:
-  - `app/(admin)/layout.tsx` with AdminLayout
-  - All admin page routes as specified in design document
-  - Route protection with admin role check
-  - Redirect non-admin users to /home
+- [x] 3.4 Create admin route group structure:
+  - `app/admin/layout.tsx` with AdminLayout wrapping all admin routes
+  - All 13 admin page routes scaffolded as specified
+  - Route protection: unauthenticated users redirected to /login
+  - Role protection: users without adminRole redirected to /login
+  - Login page checks user.role is ADMIN or SUPPORT
 
 ---
 
