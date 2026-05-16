@@ -1,17 +1,31 @@
 # Frontend Tasks — DerLg System Admin Panel
 
 > Source: `/docs/specs/system-admin/combined.md` + `/docs/specs/telegram/design.md`
-> Status: **All tasks pending (⬜)** — frontend has page shells, API stubs, and Zustand stores, but most components are non-functional placeholders. Missing key dependencies.
+> Status: **F1 Complete** — All dependencies installed, shadcn/ui components ready, build compiles cleanly.
 
 ---
 
 ## F1: Install Missing Dependencies
 
-- [ ] 1.1 Install required dependencies (shadcn/ui components, leaflet, etc.)
-- [ ] 1.2 Add `leaflet` + `react-leaflet` for emergency location maps
-- [ ] 1.3 Add `socket.io-client` for WebSocket connection
-- [ ] 1.4 Install shadcn/ui components: Table, Dialog, DropdownMenu, Form, Input, Button, Badge, Card, Select, DatePicker, Tabs, Accordion, AlertDialog, Toast, Avatar, Skeleton, Pagination, Calendar, Popover, Checkbox, Textarea, Command, Separator
-- [ ] 1.5 Verify React 19 compatibility for all installed packages
+- [x] 1.1 Install required dependencies (shadcn/ui components, leaflet, etc.)
+  - Base: `class-variance-authority`, `clsx`, `tailwind-merge`, `@radix-ui/react-slot`
+  - Map: `leaflet@1.9.4`, `react-leaflet@5.0.0`, `@types/leaflet@1.9.21`
+  - WebSocket: `socket.io-client@4.8.3`
+  - Date picker: `react-day-picker@10.0.1`, `date-fns@4.1.0`
+  - Command palette: `cmdk@1.1.1`
+  - Toast: `sonner@2.0.7`
+  - Themes: `next-themes@0.4.6`
+- [x] 1.2 Add `leaflet` + `react-leaflet` for emergency location maps
+- [x] 1.3 Add `socket.io-client` for WebSocket connection
+- [x] 1.4 Install shadcn/ui components: Table, Dialog, DropdownMenu, Form, Input, Button, Badge, Card, Select, DatePicker (Calendar), Tabs, Accordion, AlertDialog, Toast (Sonner), Avatar, Skeleton, Pagination, Calendar, Popover, Checkbox, Textarea, Command, Separator
+  - 24 component files in `components/ui/`
+  - `lib/utils.ts` with `cn()` helper created
+  - `components.json` configured for Tailwind v4 + Next.js 16
+- [x] 1.5 Verify React 19 compatibility for all installed packages
+  - Next.js 16.2.4 builds successfully with React 19.2.4
+  - All shadcn/ui components compile cleanly
+  - `react-leaflet@5.0.0` and `react-day-picker@10.0.1` confirmed React 19 compatible
+  - Fixed `calendar.tsx` `table` className for react-day-picker v10 API
 
 ---
 
