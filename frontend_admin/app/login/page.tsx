@@ -8,7 +8,7 @@ import { authApi } from '@/lib/api'
 
 export default function LoginPage() {
   const router = useRouter()
-  const { setAuth } = useAuthStore()
+  const { setAuth, setPermissions } = useAuthStore()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
@@ -29,7 +29,12 @@ export default function LoginPage() {
         return
       }
 
+      // Store auth + permissions
       setAuth(user, accessToken)
+      if (user.permissions) {
+        setPermissions(user.permissions)
+      }
+
       router.replace('/admin/dashboard')
     } catch (err: any) {
       const msg = err?.response?.data?.message || 'Invalid email or password.'

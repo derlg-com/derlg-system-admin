@@ -100,20 +100,23 @@
 ## F4: Authentication & Authorization
 **Source:** Combined Task 36
 
-- [ ] 4.1 Create admin route protection middleware:
-  - Check user.role is ADMIN or SUPPORT
-  - Redirect non-admin users to /home
-  - Fetch admin_role and permissions from backend on login
-  - Store admin permissions in Zustand auth store
-- [ ] 4.2 Implement role-based UI rendering:
-  - Hide/show menu items based on admin_role
-  - Disable actions based on permissions
-  - Show "Access Denied" message for unauthorized features
-- [ ] 4.3 Handle token refresh in admin panel:
-  - Automatically refresh JWT when access token expires (15 min)
-  - Call POST /v1/auth/refresh using refresh token
-  - Update tokens in httpOnly cookies
-  - Maintain session across page navigation
+- [x] 4.1 Create admin route protection:
+  - Login page checks user.role is ADMIN or SUPPORT before allowing access
+  - `RequireAuth` component (`components/shared/RequireAuth.tsx`) guards pages by auth state, required roles, and required permissions
+  - `AdminLayout` redirects unauthenticated users to /login
+  - `AdminLayout` redirects users without adminRole to /login
+  - Admin role and permissions stored in Zustand auth store on login
+- [x] 4.2 Implement role-based UI rendering:
+  - `AdminSidebar` filters nav items by admin_role (SUPER_ADMIN, OPERATIONS_MANAGER, FLEET_MANAGER, SUPPORT_AGENT)
+  - `usePermission` hook (`hooks/usePermission.ts`) provides granular permission checks + role-based helpers (canManageDrivers, canManageBookings, etc.)
+  - `AccessDenied` component (`components/shared/AccessDenied.tsx`) shows shield icon + message for unauthorized features
+  - SUPER_ADMIN bypasses all permission checks
+- [x] 4.3 Handle token refresh in admin panel:
+  - Axios interceptor catches 401, queues pending requests, calls POST /v1/auth/refresh with httpOnly cookie
+  - On successful refresh: updates localStorage token, notifies Zustand store via `setTokenRefreshCallback`, retries queued requests
+  - On refresh failure: clears auth, redirects to /login
+  - `AuthProvider` component wires up token refresh callback to keep Zustand store in sync
+  - Zustand persist middleware maintains session across page navigation
 
 ---
 

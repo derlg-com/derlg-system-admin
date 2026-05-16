@@ -11,6 +11,13 @@ const api: AxiosInstance = axios.create({
 let isRefreshing = false
 let pendingRequests: Array<() => void> = []
 
+// Callback for notifying the auth store when tokens are refreshed
+let onTokenRefresh: ((token: string, user?: any) => void) | null = null
+
+export function setTokenRefreshCallback(cb: (token: string, user?: any) => void) {
+  onTokenRefresh = cb
+}
+
 // Unwrap the backend's { success, data, message } response envelope
 api.interceptors.response.use((response) => {
   if (
@@ -47,8 +54,10 @@ api.interceptors.response.use(
       try {
         const res = await axios.post(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true })
         const tokenData = res.data?.data ?? res.data
-        const { accessToken } = tokenData
+        const { accessToken, user } = tokenData
         localStorage.setItem('admin_access_token', accessToken)
+        // Notify auth store about the refreshed token + user
+        onTokenRefresh?.(accessToken, user)
         pendingRequests.forEach((cb) => cb())
         pendingRequests = []
         isRefreshing = false
@@ -58,8 +67,13 @@ api.interceptors.response.use(
         isRefreshing = false
         pendingRequests = []
         localStorage.removeItem('admin_access_token')
+        onTokenRefresh?.('', null)
         if (typeof window !== 'undefined') window.location.href = '/login'
       }
+    }
+    // On 403: permission denied — could show toast here if needed
+    if (error.response?.status === 403) {
+      // Let calling code handle this, but we could log it
     }
     return Promise.reject(error)
   },

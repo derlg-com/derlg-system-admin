@@ -5,6 +5,8 @@ export { SearchInput } from './SearchInput'
 export { FilterDropdown, type FilterOption } from './FilterDropdown'
 export { ConfirmDialog } from './ConfirmDialog'
 export { ImageUpload } from './ImageUpload'
+export { AccessDenied } from './AccessDenied'
+export { RequireAuth } from './RequireAuth'
 
 import { Search } from 'lucide-react'
 
