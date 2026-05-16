@@ -153,34 +153,34 @@
 ## F6: Driver Management Pages
 **Source:** Combined Task 23
 
-- [ ] 6.1 Create `DriverList` component (`components/admin/drivers/DriverList.tsx`):
+- [x] 6.1 Create `DriverList` component (`components/admin/drivers/DriverList.tsx`):
   - Fetch drivers from GET /v1/admin/drivers
   - Data table with columns: name, driver_id, vehicle, status, last_update
   - Status filter dropdown (AVAILABLE, BUSY, OFFLINE)
   - Search by name or driver_id
   - Subscribe to WebSocket for real-time status updates
   - Add Edit and View Details actions
-- [ ] 6.2 Create `DriverStatusBadge` component (`components/admin/drivers/DriverStatusBadge.tsx`):
+- [x] 6.2 Create `DriverStatusBadge` component (`components/admin/drivers/DriverStatusBadge.tsx`):
   - Color-coded badge: green (AVAILABLE), yellow (BUSY), gray (OFFLINE)
   - Pulsing animation for real-time updates
-- [ ] 6.3 Create `DriverForm` component (`components/admin/drivers/DriverForm.tsx`):
+- [x] 6.3 Create `DriverForm` component (`components/admin/drivers/DriverForm.tsx`):
   - Form for creating/editing driver profiles
   - Fields: driver_name, driver_id, telegram_id, phone, vehicle_id (dropdown)
   - Use React Hook Form + Zod validation
   - Submit to POST/PATCH /v1/admin/drivers
-- [ ] 6.4 Create `DriverDetailView` component (`components/admin/drivers/DriverDetailView.tsx`):
+- [x] 6.4 Create `DriverDetailView` component (`components/admin/drivers/DriverDetailView.tsx`):
   - Display driver profile information
   - Show assigned vehicle details
   - Display assignment history table
   - Show performance metrics (total trips, average rating)
-- [ ] 6.5 Create driver pages:
+- [x] 6.5 Create driver pages:
   - `app/(admin)/admin/drivers/page.tsx` with DriverList
   - `app/(admin)/admin/drivers/[id]/page.tsx` with DriverDetailView
-- [ ] 6.6 **Telegram-enhanced DriverList** (from Telegram design):
+- [x] 6.6 **Telegram-enhanced DriverList** (from Telegram design):
   - Telegram registration status badge (✅ Registered / ❌ Not Registered)
   - Last seen timestamp from Telegram activity
   - Filter by Telegram registration status
-- [ ] 6.7 **Telegram-enhanced DriverForm** (from Telegram design):
+- [x] 6.7 **Telegram-enhanced DriverForm** (from Telegram design):
   - `auth_pin` field (4-digit PIN, auto-generated)
   - `telegram_id` field (read-only)
   - `admin_role` dropdown (SUPER_ADMIN, OPERATIONS_MANAGER, FLEET_MANAGER, SUPPORT_AGENT)
