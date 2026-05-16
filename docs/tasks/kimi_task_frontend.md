@@ -415,17 +415,17 @@
 ## F15: Admin User Management Pages
 **Source:** Combined Task 32
 
-- [ ] 15.1 Create `AdminUserList` component (`components/admin/users/AdminUserList.tsx`):
+- [x] 15.1 Create `AdminUserList` component (`components/admin/users/AdminUserList.tsx`):
   - Fetch admin users from GET /v1/admin/users
   - Data table with columns: name, email, admin_role, permissions, is_active
   - Add Edit Role and Deactivate actions
   - Only accessible to SUPER_ADMIN role
-- [ ] 15.2 Create `AdminUserForm` component (`components/admin/users/AdminUserForm.tsx`):
+- [x] 15.2 Create `AdminUserForm` component (`components/admin/users/AdminUserForm.tsx`):
   - Form for creating/editing admin users
   - Fields: email, name, admin_role (dropdown), permissions (checkboxes)
   - Role-based permission presets
   - Submit to POST/PATCH /v1/admin/users
-- [ ] 15.3 Create admin user page:
+- [x] 15.3 Create admin user page:
   - `app/(admin)/admin/users/page.tsx` with AdminUserList
   - Add loading and error states
   - Restrict access to SUPER_ADMIN only
