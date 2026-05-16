@@ -340,12 +340,12 @@
 ## F12: Customer Support Pages
 **Source:** Combined Task 29
 
-- [ ] 12.1 Create `CustomerList` component (`components/admin/customers/CustomerList.tsx`):
+- [x] 12.1 Create `CustomerList` component (`components/admin/customers/CustomerList.tsx`):
   - Fetch customers from GET /v1/admin/customers
   - Data table with columns: name, email, phone, loyalty_points, is_student
   - Search by name, email, or phone
   - Add View Profile action
-- [ ] 12.2 Create `CustomerProfileView` component (`components/admin/customers/CustomerProfileView.tsx`):
+- [x] 12.2 Create `CustomerProfileView` component (`components/admin/customers/CustomerProfileView.tsx`):
   - Fetch customer details from GET /v1/admin/customers/:id
   - Display customer information
   - Show booking history table
@@ -353,7 +353,7 @@
   - Show reviews and feedback
   - Display emergency alerts history
   - Include loyalty points adjustment form
-- [ ] 12.3 Create customer pages:
+- [x] 12.3 Create customer pages:
   - `app/(admin)/admin/customers/page.tsx` with CustomerList
   - `app/(admin)/admin/customers/[id]/page.tsx` with CustomerProfileView
 
