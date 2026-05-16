@@ -451,14 +451,14 @@
 ## F17: WebSocket Integration
 **Source:** Combined Task 34
 
-- [ ] 17.1 Enhance `useAdminWebSocket` hook (`hooks/useAdminWebSocket.ts`):
+- [x] 17.1 Enhance `useAdminWebSocket` hook (`hooks/useAdminWebSocket.ts`):
   - Connection status UI indicator in top bar
   - Reconnect with exponential backoff (10s, 20s, 40s, max 60s)
   - Subscribe to all event types: DRIVER_STATUS_UPDATE, BOOKING_CREATED, EMERGENCY_ALERT, DRIVER_ASSIGNMENT
-- [ ] 17.2 Integrate WebSocket in AdminLayout:
+- [x] 17.2 Integrate WebSocket in AdminLayout:
   - Display connection status indicator in top bar
   - Show reconnecting message when connection lost
-- [ ] 17.3 Implement real-time updates in components:
+- [x] 17.3 Implement real-time updates in components:
   - Update DriverList when DRIVER_STATUS_UPDATE received
   - Update BookingList when BOOKING_CREATED received
   - Show urgent notification when EMERGENCY_ALERT received

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import {
@@ -21,8 +21,6 @@ import { DriverStatusBadge } from './DriverStatusBadge'
 import { DriverForm, type DriverFormData } from './DriverForm'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
-
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/v1/admin/ws'
 
 interface Driver {
   id: string
@@ -71,9 +69,6 @@ export function DriverList() {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Driver | null>(null)
   const [deleting, setDeleting] = useState<Driver | null>(null)
-  const wsRef = useRef<WebSocket | null>(null)
-  const reconnectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const backoffMs = useRef(10000)
 
   // Fetch drivers
   const { data = [], isLoading } = useQuery<Driver[]>({
@@ -125,62 +120,6 @@ export function DriverList() {
     d.driver_id?.toLowerCase().includes(search.toLowerCase())
   )
 
-  // WebSocket for real-time status updates
-  const connectWs = useCallback(() => {
-    if (typeof window === 'undefined') return
-    const token = localStorage.getItem('admin_access_token')
-    const url = token ? `${WS_URL}?token=${token}` : WS_URL
-
-    try {
-      wsRef.current = new WebSocket(url)
-
-      wsRef.current.onopen = () => {
-        backoffMs.current = 10000
-      }
-
-      wsRef.current.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data)
-          if (msg.type === 'DRIVER_STATUS_CHANGED') {
-            qc.setQueryData<Driver[]>(['admin-drivers', statusFilter, telegramFilter], (old) => {
-              if (!old) return old
-              return old.map((d) =>
-                d.id === msg.driverId
-                  ? { ...d, status: msg.status, last_status_update: new Date().toISOString() }
-                  : d
-              )
-            })
-            toast.info(`${msg.driverName} is now ${msg.status}`, {
-              duration: 3000,
-            })
-          }
-        } catch {
-          // ignore parse errors
-        }
-      }
-
-      wsRef.current.onerror = () => {
-        wsRef.current?.close()
-      }
-
-      wsRef.current.onclose = () => {
-        reconnectTimeout.current = setTimeout(() => {
-          backoffMs.current = Math.min(backoffMs.current * 1.5, 60000)
-          connectWs()
-        }, backoffMs.current)
-      }
-    } catch {
-      // ignore
-    }
-  }, [qc, statusFilter, telegramFilter])
-
-  useEffect(() => {
-    connectWs()
-    return () => {
-      if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current)
-      wsRef.current?.close()
-    }
-  }, [connectWs])
 
   const openEdit = (driver: Driver) => {
     setEditing(driver)

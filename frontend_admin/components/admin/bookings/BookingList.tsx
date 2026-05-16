@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import {
@@ -19,8 +19,6 @@ import { DataTable } from '@/components/shared/DataTable'
 import { SearchInput, FilterDropdown, PageHeader, Modal, FormField, ConfirmDialog } from '@/components/shared'
 import { format, parseISO } from 'date-fns'
 import { toast } from 'sonner'
-
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/v1/admin/ws'
 
 interface Booking {
   id: string
@@ -47,9 +45,6 @@ export function BookingList() {
   const [showCancel, setShowCancel] = useState(false)
   const [showAssign, setShowAssign] = useState(false)
   const [assignDriverId, setAssignDriverId] = useState('')
-  const wsRef = useRef<WebSocket | null>(null)
-  const reconnectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const backoffMs = useRef(10000)
 
   const { data = [], isLoading } = useQuery<Booking[]>({
     queryKey: ['admin-bookings', statusFilter, typeFilter, aiFilter],
@@ -105,53 +100,6 @@ export function BookingList() {
     )
   })
 
-  // WebSocket for real-time booking notifications
-  const connectWs = useCallback(() => {
-    if (typeof window === 'undefined') return
-    const token = localStorage.getItem('admin_access_token')
-    const url = token ? `${WS_URL}?token=${token}` : WS_URL
-
-    try {
-      wsRef.current = new WebSocket(url)
-
-      wsRef.current.onopen = () => {
-        backoffMs.current = 10000
-      }
-
-      wsRef.current.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data)
-          if (msg.type === 'NEW_BOOKING') {
-            qc.invalidateQueries({ queryKey: ['admin-bookings'] })
-            toast.info(`New booking: ${msg.bookingRef}`, { duration: 5000 })
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      wsRef.current.onerror = () => {
-        wsRef.current?.close()
-      }
-
-      wsRef.current.onclose = () => {
-        reconnectTimeout.current = setTimeout(() => {
-          backoffMs.current = Math.min(backoffMs.current * 1.5, 60000)
-          connectWs()
-        }, backoffMs.current)
-      }
-    } catch {
-      // ignore
-    }
-  }, [qc])
-
-  useEffect(() => {
-    connectWs()
-    return () => {
-      if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current)
-      wsRef.current?.close()
-    }
-  }, [connectWs])
 
   const columns = [
     {

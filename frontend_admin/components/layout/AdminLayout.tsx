@@ -61,8 +61,6 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated) return null
 
-  const wsConnected = connectionStatus === 'connected'
-
   return (
     <div className="flex min-h-screen">
       {/* Mobile sidebar overlay */}
@@ -115,16 +113,24 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             {/* WS connection indicator */}
             <div
               title={`WebSocket: ${connectionStatus}`}
-              className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground"
+              className="hidden sm:flex items-center gap-1.5 text-xs"
             >
-              {wsConnected ? (
-                <Wifi size={14} className="text-emerald-500" />
+              {connectionStatus === 'connected' ? (
+                <>
+                  <Wifi size={14} className="text-emerald-500" />
+                  <span className="text-emerald-500">Connected</span>
+                </>
+              ) : connectionStatus === 'connecting' ? (
+                <>
+                  <Wifi size={14} className="text-amber-500 animate-pulse" />
+                  <span className="text-amber-500">Reconnecting…</span>
+                </>
               ) : (
-                <WifiOff size={14} className="text-destructive" />
+                <>
+                  <WifiOff size={14} className="text-destructive" />
+                  <span className="text-destructive">Disconnected</span>
+                </>
               )}
-              <span className={cn(wsConnected ? 'text-emerald-500' : 'text-destructive')}>
-                {wsConnected ? 'Connected' : 'Disconnected'}
-              </span>
             </div>
 
             <NotificationBell />
