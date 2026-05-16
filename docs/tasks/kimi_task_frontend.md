@@ -473,7 +473,7 @@
 ## F18: AI Monitoring Page
 **Source:** Combined Task 19 (AI requirement)
 
-- [ ] 18.1 Create AI Monitoring page: `app/(admin)/admin/ai-monitoring/page.tsx`
+- [x] 18.1 Create AI Monitoring page: `app/(admin)/admin/ai-monitoring/page.tsx`
   - Display AI-assisted booking flag in booking list
   - Filter bookings by metadata.ai_assisted
   - Display AI session_id from booking metadata

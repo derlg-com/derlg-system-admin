@@ -127,6 +127,14 @@ export const bookingsApi = {
   cancel: (id: string) => api.post(`/bookings/${id}/cancel`),
 }
 
+// AI Sessions
+export const aiSessionsApi = {
+  getBookings: (params?: Record<string, any>) => api.get('/admin/ai-sessions/bookings', { params }),
+  getSession: (sessionId: string) => api.get(`/admin/ai-sessions/${sessionId}`),
+  getSuccessRate: (params?: Record<string, any>) => api.get('/admin/ai-sessions/metrics/success-rate', { params }),
+  getPerformance: (params?: Record<string, any>) => api.get('/admin/ai-sessions/metrics/performance', { params }),
+}
+
 // Admin Assignments
 export const assignmentsApi = {
   create: (data: any) => api.post('/admin/assignments', data),
