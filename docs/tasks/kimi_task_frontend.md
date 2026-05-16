@@ -221,13 +221,13 @@
 ## F8: Booking Management Pages
 **Source:** Combined Task 25
 
-- [ ] 8.1 Create `BookingList` component (`components/admin/bookings/BookingList.tsx`):
+- [x] 8.1 Create `BookingList` component (`components/admin/bookings/BookingList.tsx`):
   - Fetch bookings from GET /v1/admin/bookings
   - Data table with columns: booking_ref, customer, type, status, travel_date, total
   - Filters: booking_type, status, date range, AI-assisted flag
   - Search by booking_ref or customer email
   - Subscribe to WebSocket for real-time new booking notifications
-- [ ] 8.2 Create `BookingDetailView` component (`components/admin/bookings/BookingDetailView.tsx`):
+- [x] 8.2 Create `BookingDetailView` component (`components/admin/bookings/BookingDetailView.tsx`):
   - Fetch booking details from GET /v1/admin/bookings/:id
   - Display complete booking information
   - Show customer details from users table
@@ -235,21 +235,21 @@
   - Display payment status and history
   - Include DriverAssignmentPanel component
   - Add modification and cancellation actions
-- [ ] 8.3 Create `DriverAssignmentPanel` component (`components/admin/bookings/DriverAssignmentPanel.tsx`):
+- [x] 8.3 Create `DriverAssignmentPanel` component (`components/admin/bookings/DriverAssignmentPanel.tsx`):
   - Dropdown to select available driver from GET /v1/admin/drivers?status=AVAILABLE
   - Display vehicle capacity validation
   - Assign button calling POST /v1/admin/assignments
   - Show current assignment if exists
   - Display error if driver not available (409 Conflict)
-- [ ] 8.4 Create `BookingModificationForm` component (`components/admin/bookings/BookingModificationForm.tsx`):
+- [x] 8.4 Create `BookingModificationForm` component (`components/admin/bookings/BookingModificationForm.tsx`):
   - Form to modify booking details
   - Fields: travel_date, end_date, num_adults, num_children, customizations
   - Validation and price recalculation
   - Submit to PATCH /v1/admin/bookings/:id
-- [ ] 8.5 Create booking pages:
+- [x] 8.5 Create booking pages:
   - `app/(admin)/admin/bookings/page.tsx` with BookingList
   - `app/(admin)/admin/bookings/[id]/page.tsx` with BookingDetailView
-- [ ] 8.6 **Telegram-enhanced assignment** (from Telegram design):
+- [x] 8.6 **Telegram-enhanced assignment** (from Telegram design):
   - Filter drivers by AVAILABLE + telegram_id NOT NULL
   - Notification sent indicator
   - Real-time response status (pending/accepted/rejected)
