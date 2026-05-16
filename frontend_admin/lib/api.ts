@@ -139,10 +139,13 @@ export const hotelsApi = {
   get: (id: string) => api.get(`/admin/hotels/${id}`),
   create: (data: any) => api.post('/admin/hotels', data),
   update: (id: string, data: any) => api.patch(`/admin/hotels/${id}`, data),
+  delete: (id: string) => api.delete(`/admin/hotels/${id}`),
   getRooms: (id: string) => api.get(`/admin/hotels/${id}/rooms`),
   createRoom: (id: string, data: any) => api.post(`/admin/hotels/${id}/rooms`, data),
   updateRoom: (hotelId: string, roomId: string, data: any) =>
     api.patch(`/admin/hotels/${hotelId}/rooms/${roomId}`, data),
+  deleteRoom: (hotelId: string, roomId: string) =>
+    api.delete(`/admin/hotels/${hotelId}/rooms/${roomId}`),
 }
 
 // Admin Guides

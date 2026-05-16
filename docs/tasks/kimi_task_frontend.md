@@ -260,26 +260,26 @@
 ## F9: Hotel Management Pages
 **Source:** Combined Task 26
 
-- [ ] 9.1 Create `HotelList` component (`components/admin/hotels/HotelList.tsx`):
+- [x] 9.1 Create `HotelList` component (`components/admin/hotels/HotelList.tsx`):
   - Fetch hotels from GET /v1/admin/hotels
   - Data table with columns: name, location, rating, room_count
   - Search by name or location
   - Add Edit and Manage Rooms actions
-- [ ] 9.2 Create `HotelForm` component (`components/admin/hotels/HotelForm.tsx`):
+- [x] 9.2 Create `HotelForm` component (`components/admin/hotels/HotelForm.tsx`):
   - Form for creating/editing hotels
   - Fields: name, description, location (JSON with lat/lng), images, rating, amenities, check_in_time, check_out_time, cancellation_policy
   - Location picker using Leaflet.js map
   - Image upload to Supabase Storage
-- [ ] 9.3 Create `RoomManagement` component (`components/admin/hotels/RoomManagement.tsx`):
+- [x] 9.3 Create `RoomManagement` component (`components/admin/hotels/RoomManagement.tsx`):
   - List of rooms for a hotel from GET /v1/admin/hotels/:id/rooms
   - Add/Edit/Delete room actions
   - Display room availability calendar
-- [ ] 9.4 Create `RoomForm` component (`components/admin/hotels/RoomForm.tsx`):
+- [x] 9.4 Create `RoomForm` component (`components/admin/hotels/RoomForm.tsx`):
   - Form for creating/editing rooms
   - Fields: name, description, capacity, price_per_night, images, amenities
   - Image upload to Supabase Storage
   - Submit to POST/PATCH /v1/admin/hotels/:hotelId/rooms/:roomId
-- [ ] 9.5 Create hotel pages:
+- [x] 9.5 Create hotel pages:
   - `app/(admin)/admin/hotels/page.tsx` with HotelList
   - `app/(admin)/admin/hotels/[id]/page.tsx` with hotel detail
   - `app/(admin)/admin/hotels/[id]/rooms/page.tsx` with RoomManagement

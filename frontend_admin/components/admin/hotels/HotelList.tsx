@@ -2,74 +2,291 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Edit2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Plus, Edit2, Eye, BedDouble, Trash2 } from 'lucide-react'
 import { hotelsApi } from '@/lib/api'
 import { DataTable } from '@/components/shared/DataTable'
-import { SearchInput, PageHeader, Modal, FormField } from '@/components/shared'
+import { SearchInput, PageHeader, ConfirmDialog } from '@/components/shared'
+import { HotelForm, type HotelFormData } from './HotelForm'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { toast } from 'sonner'
 
-interface HotelFormData {
-  name: string; province: string; address: string; star_rating: number; check_in_time: string; check_out_time: string; amenities: string
+interface Hotel {
+  id: string
+  name: string
+  description?: string
+  location?: { lat: number; lng: number }
+  images?: string[]
+  rating?: number
+  amenities?: string[]
+  check_in_time?: string
+  check_out_time?: string
+  cancellation_policy?: string
+  room_count?: number
+  is_active?: boolean
+  created_at?: string
+  updated_at?: string
 }
-const EMPTY: HotelFormData = { name: '', province: '', address: '', star_rating: 3, check_in_time: '14:00', check_out_time: '12:00', amenities: '' }
 
 export function HotelList() {
   const qc = useQueryClient()
+  const router = useRouter()
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
-  const [editing, setEditing] = useState<any>(null)
-  const [form, setForm] = useState<HotelFormData>(EMPTY)
+  const [editing, setEditing] = useState<Hotel | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Hotel | null>(null)
 
   const { data = [], isLoading } = useQuery({
     queryKey: ['admin-hotels'],
-    queryFn: () => hotelsApi.list().then((r) => r.data),
+    queryFn: () => hotelsApi.list().then((r) => r.data as Hotel[]),
+    staleTime: 30000,
   })
 
-  const mutation = useMutation({
-    mutationFn: (d: any) => editing ? hotelsApi.update(editing.id, d) : hotelsApi.create(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-hotels'] }); setShowForm(false); setEditing(null); setForm(EMPTY) },
+  const createMutation = useMutation({
+    mutationFn: (d: HotelFormData) => hotelsApi.create(d),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-hotels'] })
+      setShowForm(false)
+      toast.success('Hotel created successfully')
+    },
+    onError: () => toast.error('Failed to create hotel'),
   })
 
-  const filtered = data.filter((h: any) => !search || h.name?.toLowerCase().includes(search.toLowerCase()) || h.province?.toLowerCase().includes(search.toLowerCase()))
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: HotelFormData }) =>
+      hotelsApi.update(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-hotels'] })
+      setShowForm(false)
+      setEditing(null)
+      toast.success('Hotel updated successfully')
+    },
+    onError: () => toast.error('Failed to update hotel'),
+  })
 
-  const openEdit = (h: any) => {
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => hotelsApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-hotels'] })
+      setDeleteTarget(null)
+      toast.success('Hotel deleted successfully')
+    },
+    onError: () => toast.error('Failed to delete hotel'),
+  })
+
+  const filtered = data.filter((h: Hotel) => {
+    if (!search) return true
+    const term = search.toLowerCase()
+    const locationStr = h.location
+      ? `${h.location.lat}, ${h.location.lng}`
+      : ''
+    return (
+      h.name?.toLowerCase().includes(term) ||
+      locationStr.toLowerCase().includes(term)
+    )
+  })
+
+  const openEdit = (h: Hotel) => {
     setEditing(h)
-    setForm({ name: h.name, province: h.province, address: h.address || '', star_rating: h.star_rating, check_in_time: h.check_in_time || '14:00', check_out_time: h.check_out_time || '12:00', amenities: (h.amenities || []).join(', ') })
     setShowForm(true)
   }
 
+  const openCreate = () => {
+    setEditing(null)
+    setShowForm(true)
+  }
+
+  const handleSubmit = (formData: HotelFormData) => {
+    if (editing) {
+      updateMutation.mutate({ id: editing.id, data: formData })
+    } else {
+      createMutation.mutate(formData)
+    }
+  }
+
+  const handleCancel = () => {
+    setShowForm(false)
+    setEditing(null)
+  }
+
+  const defaultFormValues: Partial<HotelFormData> | undefined = editing
+    ? {
+        name: editing.name,
+        description: editing.description,
+        location: editing.location,
+        images: editing.images,
+        rating: editing.rating,
+        amenities: editing.amenities,
+        check_in_time: editing.check_in_time,
+        check_out_time: editing.check_out_time,
+        cancellation_policy: editing.cancellation_policy,
+      }
+    : undefined
+
   return (
     <div>
-      <PageHeader title="Hotels" subtitle={`${data.length} hotels`} actions={<button className="btn btn-primary" onClick={() => { setEditing(null); setForm(EMPTY); setShowForm(true) }}><Plus size={15} /> Add Hotel</button>} />
+      <PageHeader
+        title="Hotels"
+        subtitle={`${data.length} hotels`}
+        actions={
+          <button className="btn btn-primary" onClick={openCreate}>
+            <Plus size={15} /> Add Hotel
+          </button>
+        }
+      />
+
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search by name or province…" />
-      </div>
-      <div className="card" style={{ padding: 0 }}>
-        <DataTable data={filtered} loading={isLoading} rowKey="id" emptyMessage="No hotels found"
-          columns={[
-            { key: 'name', label: 'Hotel Name', sortable: true },
-            { key: 'province', label: 'Province' },
-            { key: 'star_rating', label: 'Stars', render: (r) => '★'.repeat(r.star_rating) },
-            { key: 'check_in_time', label: 'Check-in' },
-            { key: 'check_out_time', label: 'Check-out' },
-            { key: 'isActive', label: 'Active', render: (r) => <span style={{ color: r.is_active ? 'var(--success)' : 'var(--text-muted)' }}>{r.is_active ? 'Yes' : 'No'}</span> },
-          ]}
-          actions={(row) => <button className="btn btn-ghost btn-icon btn-sm" onClick={() => openEdit(row)}><Edit2 size={13} /></button>}
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by name or location..."
         />
       </div>
-      <Modal open={showForm} title={editing ? 'Edit Hotel' : 'Add Hotel'} onClose={() => { setShowForm(false); setEditing(null) }} maxWidth={600}
-        footer={<><button className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button><button className="btn btn-primary" form="hotel-form" type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Saving…' : editing ? 'Save' : 'Create'}</button></>}>
-        <form id="hotel-form" onSubmit={(e) => { e.preventDefault(); mutation.mutate({ ...form, amenities: form.amenities.split(',').map((a) => a.trim()).filter(Boolean) }) }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <FormField label="Hotel Name" required><input className="form-input" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required /></FormField>
-            <FormField label="Province" required><input className="form-input" value={form.province} onChange={(e) => setForm((f) => ({ ...f, province: e.target.value }))} required /></FormField>
-            <FormField label="Star Rating"><input className="form-input" type="number" min={1} max={5} value={form.star_rating} onChange={(e) => setForm((f) => ({ ...f, star_rating: +e.target.value }))} /></FormField>
-            <FormField label="Address"><input className="form-input" value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} /></FormField>
-            <FormField label="Check-in Time"><input className="form-input" type="time" value={form.check_in_time} onChange={(e) => setForm((f) => ({ ...f, check_in_time: e.target.value }))} /></FormField>
-            <FormField label="Check-out Time"><input className="form-input" type="time" value={form.check_out_time} onChange={(e) => setForm((f) => ({ ...f, check_out_time: e.target.value }))} /></FormField>
-          </div>
-          <FormField label="Amenities" hint="Comma-separated"><input className="form-input" value={form.amenities} onChange={(e) => setForm((f) => ({ ...f, amenities: e.target.value }))} placeholder="Pool, WiFi, Spa" /></FormField>
-        </form>
-      </Modal>
+
+      <div className="card" style={{ padding: 0 }}>
+        <DataTable
+          data={filtered}
+          loading={isLoading}
+          rowKey="id"
+          emptyMessage="No hotels found"
+          columns={[
+            {
+              key: 'name',
+              label: 'Hotel Name',
+              sortable: true,
+              render: (r: Hotel) => (
+                <div className="flex items-center gap-2">
+                  {r.images && r.images.length > 0 ? (
+                    <img
+                      src={r.images[0]}
+                      alt={r.name}
+                      className="w-8 h-8 rounded object-cover"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded bg-muted flex items-center justify-center">
+                      <BedDouble size={14} className="text-muted-foreground" />
+                    </div>
+                  )}
+                  <span className="font-medium">{r.name}</span>
+                </div>
+              ),
+            },
+            {
+              key: 'location',
+              label: 'Location',
+              render: (r: Hotel) =>
+                r.location
+                  ? `${r.location.lat.toFixed(4)}, ${r.location.lng.toFixed(4)}`
+                  : '-',
+            },
+            {
+              key: 'rating',
+              label: 'Rating',
+              render: (r: Hotel) =>
+                r.rating ? (
+                  <span className="text-amber-400">
+                    {'★'.repeat(Math.round(r.rating))}
+                    <span className="text-muted-foreground text-xs ml-1">
+                      {r.rating}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground text-sm">-</span>
+                ),
+            },
+            {
+              key: 'room_count',
+              label: 'Rooms',
+              render: (r: Hotel) => r.room_count ?? 0,
+            },
+            {
+              key: 'check_in_time',
+              label: 'Check-in',
+              render: (r: Hotel) => r.check_in_time || '-',
+            },
+            {
+              key: 'is_active',
+              label: 'Status',
+              render: (r: Hotel) => (
+                <span
+                  style={{
+                    color: r.is_active !== false ? 'var(--success)' : 'var(--text-muted)',
+                  }}
+                >
+                  {r.is_active !== false ? 'Active' : 'Inactive'}
+                </span>
+              ),
+            },
+          ]}
+          actions={(row: Hotel) => (
+            <div className="flex items-center gap-1">
+              <button
+                className="btn btn-ghost btn-icon btn-sm tooltip-wrapper"
+                onClick={() => router.push(`/admin/hotels/${row.id}`)}
+                title="View Details"
+              >
+                <Eye size={13} />
+              </button>
+              <button
+                className="btn btn-ghost btn-icon btn-sm"
+                onClick={() => router.push(`/admin/hotels/${row.id}/rooms`)}
+                title="Manage Rooms"
+              >
+                <BedDouble size={13} />
+              </button>
+              <button
+                className="btn btn-ghost btn-icon btn-sm"
+                onClick={() => openEdit(row)}
+                title="Edit"
+              >
+                <Edit2 size={13} />
+              </button>
+              <button
+                className="btn btn-ghost btn-icon btn-sm text-destructive hover:text-destructive"
+                onClick={() => setDeleteTarget(row)}
+                title="Delete"
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
+          )}
+        />
+      </div>
+
+      {/* Hotel Form Dialog */}
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editing ? 'Edit Hotel' : 'Create Hotel'}
+            </DialogTitle>
+          </DialogHeader>
+          <HotelForm
+            defaultValues={defaultFormValues}
+            onSubmit={handleSubmit}
+            onCancel={handleCancel}
+            loading={createMutation.isPending || updateMutation.isPending}
+            isEditing={!!editing}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Hotel"
+        message={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        onCancel={() => setDeleteTarget(null)}
+        loading={deleteMutation.isPending}
+      />
     </div>
   )
 }
