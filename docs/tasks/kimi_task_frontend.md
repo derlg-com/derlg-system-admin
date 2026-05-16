@@ -312,14 +312,14 @@
 ## F11: Emergency Alert Management Pages
 **Source:** Combined Task 28
 
-- [ ] 11.1 Create `EmergencyAlertList` component (`components/admin/emergency/EmergencyAlertList.tsx`):
+- [x] 11.1 Create `EmergencyAlertList` component (`components/admin/emergency/EmergencyAlertList.tsx`):
   - Fetch alerts from GET /v1/admin/emergency
   - Data table with columns: alert_type, customer, location, status, time
   - Filters: status (SENT, ACKNOWLEDGED, RESOLVED), alert_type
   - Urgent visual styling for SENT alerts
   - Subscribe to WebSocket for new emergency alerts
   - Play sound notification for new alerts using browser Notification API
-- [ ] 11.2 Create `EmergencyDetailView` component (`components/admin/emergency/EmergencyDetailView.tsx`):
+- [x] 11.2 Create `EmergencyDetailView` component (`components/admin/emergency/EmergencyDetailView.tsx`):
   - Fetch alert details from GET /v1/admin/emergency/:id
   - Display alert details (type, message, timestamp)
   - Show customer contact information
@@ -327,11 +327,11 @@
   - Render EmergencyMap component with location
   - Add Acknowledge and Resolve action buttons
   - Include resolution notes textarea
-- [ ] 11.3 Create `EmergencyMap` component (`components/admin/emergency/EmergencyMap.tsx`):
+- [x] 11.3 Create `EmergencyMap` component (`components/admin/emergency/EmergencyMap.tsx`):
   - Leaflet.js map showing alert location (latitude, longitude)
   - Add marker with alert type icon
   - Display nearby hotels/hospitals/police stations
-- [ ] 11.4 Create emergency pages:
+- [x] 11.4 Create emergency pages:
   - `app/(admin)/admin/emergency/page.tsx` with EmergencyAlertList
   - `app/(admin)/admin/emergency/[id]/page.tsx` with EmergencyDetailView
 
