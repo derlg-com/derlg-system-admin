@@ -435,13 +435,13 @@
 ## F16: Audit Log Viewer Page
 **Source:** Combined Task 33
 
-- [ ] 16.1 Create `AuditLogViewer` component (`components/admin/audit/AuditLogViewer.tsx`):
+- [x] 16.1 Create `AuditLogViewer` component (`components/admin/audit/AuditLogViewer.tsx`):
   - Fetch audit logs from GET /v1/admin/audit-logs
   - Data table with columns: timestamp, admin_user, action_type, resource_type, affected_resource_id
   - Filters: date range, admin_user, action_type
   - Add expandable rows showing changed_fields JSON
   - Add export button calling GET /v1/admin/audit-logs/export
-- [ ] 16.2 Create audit log page:
+- [x] 16.2 Create audit log page:
   - `app/(admin)/admin/audit-logs/page.tsx` with AuditLogViewer
   - Add loading and error states
   - Restrict access to SUPER_ADMIN only
