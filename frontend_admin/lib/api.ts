@@ -109,6 +109,7 @@ export const vehiclesApi = {
   get: (id: string) => api.get(`/admin/vehicles/${id}`),
   create: (data: any) => api.post('/admin/vehicles', data),
   update: (id: string, data: any) => api.patch(`/admin/vehicles/${id}`, data),
+  delete: (id: string) => api.delete(`/admin/vehicles/${id}`),
 }
 
 // Admin Maintenance

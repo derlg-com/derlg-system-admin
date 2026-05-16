@@ -191,28 +191,28 @@
 ## F7: Vehicle Management Pages
 **Source:** Combined Task 24
 
-- [ ] 7.1 Create `VehicleList` component (`components/admin/vehicles/VehicleList.tsx`):
+- [x] 7.1 Create `VehicleList` component (`components/admin/vehicles/VehicleList.tsx`):
   - Fetch vehicles from GET /v1/admin/vehicles
   - Data table with columns: name, category, capacity, tier, price, assigned_driver
   - Filters: category (VAN, BUS, TUK_TUK), tier (STANDARD, VIP)
   - Search by name
   - Add Edit and Schedule Maintenance actions
-- [ ] 7.2 Create `VehicleForm` component (`components/admin/vehicles/VehicleForm.tsx`):
+- [x] 7.2 Create `VehicleForm` component (`components/admin/vehicles/VehicleForm.tsx`):
   - Form for creating/editing vehicles
   - Fields: name, category, capacity, tier, price_per_day, price_per_km, features (multi-select), images (upload)
   - Image upload to Supabase Storage
   - Use React Hook Form + Zod validation
-- [ ] 7.3 Create `MaintenanceScheduler` component (`components/admin/vehicles/MaintenanceScheduler.tsx`):
+- [x] 7.3 Create `MaintenanceScheduler` component (`components/admin/vehicles/MaintenanceScheduler.tsx`):
   - Calendar view of scheduled maintenance
   - Form to schedule new maintenance
   - Fields: vehicle_id, maintenance_type, scheduled_date, notes
   - Submit to POST /v1/admin/maintenance
   - Display reminder notifications for upcoming maintenance (within 3 days)
-- [ ] 7.4 Create `MaintenanceHistory` component (`components/admin/vehicles/MaintenanceHistory.tsx`):
+- [x] 7.4 Create `MaintenanceHistory` component (`components/admin/vehicles/MaintenanceHistory.tsx`):
   - Table of past maintenance records
   - Columns: date, type, cost, notes, status
   - Calculate and display total cost
-- [ ] 7.5 Create vehicle pages:
+- [x] 7.5 Create vehicle pages:
   - `app/(admin)/admin/vehicles/page.tsx` with VehicleList
   - `app/(admin)/admin/vehicles/[id]/page.tsx` with vehicle detail and MaintenanceHistory
 
