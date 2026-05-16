@@ -123,22 +123,30 @@
 ## F5: Dashboard Page
 **Source:** Combined Task 22
 
-- [ ] 5.1 Create `DashboardOverview` component (`components/admin/dashboard/DashboardOverview.tsx`):
-  - Fetch dashboard data from GET /v1/admin/dashboard
-  - Display metric cards: bookings today, revenue today, active drivers
+- [x] 5.1 Create `DashboardOverview` component (`components/admin/dashboard/DashboardOverview.tsx`):
+  - Fetch dashboard data from GET /v1/admin/dashboard via React Query
+  - Display metric cards: bookings today, revenue today, active drivers, open emergencies
   - Render booking trend chart for past 30 days using recharts
   - Display pending actions list (unassigned bookings, upcoming maintenance)
-  - Display recent emergency alerts
-  - Implement auto-refresh every 60 seconds using React Query refetchInterval
-- [ ] 5.2 Create `MetricCard` component (`components/admin/dashboard/MetricCard.tsx`):
+  - Display recent emergency alerts with status badges
+  - Display upcoming bookings (next 24h)
+  - Implement auto-refresh every 60 seconds using React Query `refetchInterval`
+  - Mock fallback data for when API isn't ready
+- [x] 5.2 Create `MetricCard` component (`components/admin/dashboard/MetricCard.tsx`):
   - Reusable card for displaying single metric
-  - Props: title, value, icon, trend (percentage change)
+  - Props: title, value, icon, trend (percentage change), color, loading
   - Display trend indicator (up/down arrow with color)
-- [ ] 5.3 Create `BookingTrendChart` component (`components/admin/dashboard/BookingTrendChart.tsx`):
+  - Skeleton loading state
+  - Color-coded icon background
+- [x] 5.3 Create `BookingTrendChart` component (`components/admin/dashboard/BookingTrendChart.tsx`):
   - Line chart showing daily booking counts
-  - Use recharts library (LineChart, Line, XAxis, YAxis, Tooltip)
-  - Responsive design
-- [ ] 5.4 Create dashboard page: `app/(admin)/admin/dashboard/page.tsx`
+  - Use recharts library (LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer)
+  - Responsive design with custom dark theme styling
+  - Monotone line with active dot on hover
+  - Formatted date labels via date-fns
+- [x] 5.4 Create dashboard page: `app/admin/dashboard/page.tsx`
+  - Server Component with metadata
+  - Uses DashboardOverview client component
 
 ---
 
