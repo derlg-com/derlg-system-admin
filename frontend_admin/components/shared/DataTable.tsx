@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils'
 
 export interface Column<T> {
   key: string
-  label: string
+  label: React.ReactNode
   render?: (row: T) => React.ReactNode
   width?: string
   sortable?: boolean

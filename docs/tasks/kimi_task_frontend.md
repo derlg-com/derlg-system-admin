@@ -390,7 +390,7 @@
 ## F14: Analytics and Reporting Pages
 **Source:** Combined Task 31
 
-- [ ] 14.1 Create `AnalyticsDashboard` component (`components/admin/analytics/AnalyticsDashboard.tsx`):
+- [x] 14.1 Create `AnalyticsDashboard` component (`components/admin/analytics/AnalyticsDashboard.tsx`):
   - Fetch analytics data from multiple endpoints
   - Display revenue charts by booking type using RevenueChart component
   - Show booking statistics (total, by status, cancellation rate)
@@ -400,15 +400,15 @@
   - Show guide utilization rate
   - Add date range selector
   - Add export button calling GET /v1/admin/analytics/export
-- [ ] 14.2 Create `RevenueChart` component (`components/admin/analytics/RevenueChart.tsx`):
+- [x] 14.2 Create `RevenueChart` component (`components/admin/analytics/RevenueChart.tsx`):
   - Bar chart showing revenue by booking type
   - Use recharts library (BarChart, Bar, XAxis, YAxis, Tooltip, Legend)
   - Responsive design
-- [ ] 14.3 Create `PerformanceMetrics` component (`components/admin/analytics/PerformanceMetrics.tsx`):
+- [x] 14.3 Create `PerformanceMetrics` component (`components/admin/analytics/PerformanceMetrics.tsx`):
   - Table of driver/guide performance
   - Columns: name, total_trips, average_rating, revenue_generated
   - Sortable columns
-- [ ] 14.4 Create analytics page: `app/(admin)/admin/analytics/page.tsx`
+- [x] 14.4 Create analytics page: `app/(admin)/admin/analytics/page.tsx`
 
 ---
 

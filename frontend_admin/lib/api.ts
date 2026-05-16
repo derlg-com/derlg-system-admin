@@ -187,6 +187,9 @@ export const analyticsApi = {
   getRevenue: (params?: Record<string, any>) => api.get('/admin/analytics/revenue', { params }),
   getBookings: (params?: Record<string, any>) => api.get('/admin/analytics/bookings', { params }),
   getDrivers: (params?: Record<string, any>) => api.get('/admin/analytics/drivers', { params }),
+  getPopularDestinations: (params?: Record<string, any>) => api.get('/admin/analytics/destinations', { params }),
+  getHotelOccupancy: (params?: Record<string, any>) => api.get('/admin/analytics/hotels', { params }),
+  getGuideUtilization: (params?: Record<string, any>) => api.get('/admin/analytics/guides', { params }),
   export: (params?: Record<string, any>) => api.get('/admin/analytics/export', { params, responseType: 'blob' }),
 }
 
