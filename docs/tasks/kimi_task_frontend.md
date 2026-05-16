@@ -362,26 +362,26 @@
 ## F13: Discount Code Management Pages
 **Source:** Combined Task 30
 
-- [ ] 13.1 Create `DiscountCodeList` component (`components/admin/discounts/DiscountCodeList.tsx`):
+- [x] 13.1 Create `DiscountCodeList` component (`components/admin/discounts/DiscountCodeList.tsx`):
   - Fetch discount codes from GET /v1/admin/discounts
   - Data table with columns: code, discount_percentage, valid_from, valid_until, usage_count, max_usage, is_active
   - Add Edit and Deactivate actions
-- [ ] 13.2 Create `DiscountCodeForm` component (`components/admin/discounts/DiscountCodeForm.tsx`):
+- [x] 13.2 Create `DiscountCodeForm` component (`components/admin/discounts/DiscountCodeForm.tsx`):
   - Form for creating/editing discount codes
   - Fields: code, discount_percentage, valid_from, valid_until, max_usage
   - Validate code uniqueness and date range validity
   - Submit to POST/PATCH /v1/admin/discounts
-- [ ] 13.3 Create `StudentVerificationQueue` component (`components/admin/discounts/StudentVerificationQueue.tsx`):
+- [x] 13.3 Create `StudentVerificationQueue` component (`components/admin/discounts/StudentVerificationQueue.tsx`):
   - Fetch verifications from GET /v1/admin/student-verifications?status=PENDING
   - List with columns: student_name, submitted_at, status
   - Add Review action
-- [ ] 13.4 Create `StudentVerificationReview` component (`components/admin/discounts/StudentVerificationReview.tsx`):
+- [x] 13.4 Create `StudentVerificationReview` component (`components/admin/discounts/StudentVerificationReview.tsx`):
   - Display uploaded student ID and selfie images from Supabase Storage
   - Side-by-side image comparison
   - Add Approve and Reject buttons with confirmation
   - Include rejection reason textarea
   - Submit to PATCH /v1/admin/student-verifications/:id
-- [ ] 13.5 Create discount pages:
+- [x] 13.5 Create discount pages:
   - `app/(admin)/admin/discounts/page.tsx` with DiscountCodeList
   - `app/(admin)/admin/discounts/student-verifications/page.tsx` with StudentVerificationQueue
 
