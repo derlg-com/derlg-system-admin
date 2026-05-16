@@ -289,21 +289,21 @@
 ## F10: Tour Guide Management Pages
 **Source:** Combined Task 27
 
-- [ ] 10.1 Create `GuideList` component (`components/admin/guides/GuideList.tsx`):
+- [x] 10.1 Create `GuideList` component (`components/admin/guides/GuideList.tsx`):
   - Fetch guides from GET /v1/admin/guides
   - Data table with columns: name, languages, specialties, rating, price
   - Filters: languages (multi-select), specialties (multi-select)
   - Add Edit and View Details actions
-- [ ] 10.2 Create `GuideForm` component (`components/admin/guides/GuideForm.tsx`):
+- [x] 10.2 Create `GuideForm` component (`components/admin/guides/GuideForm.tsx`):
   - Form for creating/editing guides
   - Fields: name, bio, profile_picture, languages (multi-select), specialties (multi-select), experience_years, certifications, price_per_hour, price_per_day
   - Profile picture upload to Supabase Storage
-- [ ] 10.3 Create `GuideDetailView` component (`components/admin/guides/GuideDetailView.tsx`):
+- [x] 10.3 Create `GuideDetailView` component (`components/admin/guides/GuideDetailView.tsx`):
   - Display guide profile information
   - Show assignment history from bookings table
   - Display performance metrics (total assignments, average rating)
   - Show availability calendar
-- [ ] 10.4 Create guide pages:
+- [x] 10.4 Create guide pages:
   - `app/(admin)/admin/guides/page.tsx` with GuideList
   - `app/(admin)/admin/guides/[id]/page.tsx` with GuideDetailView
 

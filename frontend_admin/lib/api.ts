@@ -154,6 +154,7 @@ export const guidesApi = {
   get: (id: string) => api.get(`/admin/guides/${id}`),
   create: (data: any) => api.post('/admin/guides', data),
   update: (id: string, data: any) => api.patch(`/admin/guides/${id}`, data),
+  delete: (id: string) => api.delete(`/admin/guides/${id}`),
 }
 
 // Admin Emergency
