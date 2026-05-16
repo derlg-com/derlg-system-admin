@@ -32,28 +32,32 @@
 ## F2: Shared Admin Components
 **Source:** Combined Task 37
 
-- [ ] 2.1 Create `DataTable` component (`components/shared/DataTable.tsx`):
+- [x] 2.1 Create `DataTable` component (`components/shared/DataTable.tsx`):
   - Reusable table with sorting, filtering, pagination
   - Props: columns, data, filters, onSort, onFilter, onPageChange
-  - Use shadcn/ui Table components
+  - Use shadcn/ui Table components (Table, TableHeader, TableBody, TableRow, TableHead, TableCell)
   - Responsive design with horizontal scroll on mobile
-- [ ] 2.2 Create `SearchInput` component:
-  - Reusable search input with debounce
-  - Props: placeholder, onSearch, debounceMs
-  - Clear button
-- [ ] 2.3 Create `FilterDropdown` component:
-  - Reusable dropdown for filtering
+  - Loading skeleton state, empty state, controlled/uncontrolled pagination
+- [x] 2.2 Create `SearchInput` component (`components/shared/SearchInput.tsx`):
+  - Reusable search input with debounce (default 300ms)
+  - Props: placeholder, onSearch, debounceMs, defaultValue
+  - Clear button (X icon), backward-compatible with legacy value/onChange API
+  - Uses shadcn/ui Input component
+- [x] 2.3 Create `FilterDropdown` component (`components/shared/FilterDropdown.tsx`):
+  - Reusable dropdown for filtering using shadcn/ui DropdownMenu + Checkbox
   - Props: options, value, onChange, label
-  - Multi-select support
-- [ ] 2.4 Create `ConfirmDialog` component:
-  - Reusable confirmation dialog
-  - Props: title, message, onConfirm, onCancel
-  - Use shadcn/ui AlertDialog
-- [ ] 2.5 Create `ImageUpload` component:
-  - Reusable image upload with preview
-  - Props: onUpload, maxSize, accept
-  - Upload to Supabase Storage
-  - Display upload progress
+  - Multi-select support (string[]), backward-compatible with single-select (string)
+  - Selected count badge, clear button
+- [x] 2.4 Create `ConfirmDialog` component (`components/shared/ConfirmDialog.tsx`):
+  - Reusable confirmation dialog using shadcn/ui AlertDialog
+  - Props: title, message, onConfirm, onCancel, open, loading, variant
+  - Loading spinner on confirm button, danger/primary variants
+- [x] 2.5 Create `ImageUpload` component (`components/shared/ImageUpload.tsx`):
+  - Reusable image upload with drag-and-drop + click
+  - Props: onUpload, maxSize, accept, multiple, maxFiles
+  - Preview thumbnails, upload progress bar
+  - Calls backend presigned URL endpoint, uploads to storage
+  - Toast notifications for errors
 
 ---
 

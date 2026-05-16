@@ -184,3 +184,9 @@ export const auditLogsApi = {
   export: (params?: Record<string, any>) =>
     api.get('/admin/audit-logs/export', { params, responseType: 'blob' }),
 }
+
+// Upload / Presigned URL
+export const uploadApi = {
+  getPresignedUrl: (fileName: string, contentType: string) =>
+    api.post('/admin/upload/presigned', { fileName, contentType }),
+}
