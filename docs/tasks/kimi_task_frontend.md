@@ -521,5 +521,5 @@
 ## F22: Documentation
 **Source:** Combined Task 39
 
-- [ ] 22.1 Write admin panel user guide
-- [ ] 22.2 Write Telegram bot onboarding guide for drivers
+- [x] 22.1 Write admin panel user guide (`docs/guides/admin-panel-user-guide.md`)
+- [x] 22.2 Write Telegram bot onboarding guide for drivers (`docs/guides/telegram-bot-guide.md`)
