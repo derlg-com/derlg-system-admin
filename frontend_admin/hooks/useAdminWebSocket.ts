@@ -91,6 +91,35 @@ export function useAdminWebSocket(enabled = true) {
           break
         }
 
+        case 'SUPPORT_TICKET_CREATED':
+        case 'driver:support:ticket': {
+          queryClient.invalidateQueries({ queryKey: ['telegram-support-tickets'] })
+          const driverName = data.driverName || data.driver_name || 'Driver'
+          toast.info(`New support ticket from ${driverName}`, { duration: 5000 })
+          addNotification({
+            type: 'SYSTEM',
+            title: 'New Support Ticket',
+            message: data.message || `${driverName} created a support ticket`,
+            data,
+          })
+          // Dispatch custom event for components listening
+          window.dispatchEvent(
+            new CustomEvent('websocket-message', { detail: data })
+          )
+          break
+        }
+
+        case 'BROADCAST_STATUS':
+        case 'broadcast:status': {
+          queryClient.invalidateQueries({ queryKey: ['telegram-broadcast-history'] })
+          const sent = data.sent_count || 0
+          const failed = data.failed_count || 0
+          toast.info(`Broadcast delivered: ${sent} sent, ${failed} failed`, {
+            duration: 4000,
+          })
+          break
+        }
+
         default:
           break
       }

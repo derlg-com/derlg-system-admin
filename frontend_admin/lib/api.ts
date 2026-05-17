@@ -215,6 +215,22 @@ export const auditLogsApi = {
     api.get('/admin/audit-logs/export', { params, responseType: 'blob' }),
 }
 
+// Telegram Admin
+export const telegramApi = {
+  broadcast: (data: { message: string; image_url?: string; target_filter: Record<string, any> }) =>
+    api.post('/admin/telegram/broadcast', data),
+  getBroadcastHistory: (params?: Record<string, any>) =>
+    api.get('/admin/telegram/broadcasts', { params }),
+  getAnalytics: (params?: Record<string, any>) =>
+    api.get('/admin/telegram/analytics', { params }),
+  getSupportTickets: (params?: Record<string, any>) =>
+    api.get('/admin/telegram/support-tickets', { params }),
+  updateTicket: (id: string, data: any) =>
+    api.patch(`/admin/telegram/support-tickets/${id}`, data),
+  assignTicket: (id: string, assignedTo: string) =>
+    api.patch(`/admin/telegram/support-tickets/${id}/assign`, { assigned_to: assignedTo }),
+}
+
 // Upload / Presigned URL
 export const uploadApi = {
   getPresignedUrl: (fileName: string, contentType: string) =>

@@ -487,7 +487,7 @@
 ## F20: Telegram Admin Pages
 **Source:** Telegram design.md
 
-- [ ] 20.1 Create Telegram Broadcast page: `app/(admin)/admin/telegram/broadcast/page.tsx`
+- [x] 20.1 Create Telegram Broadcast page: `app/(admin)/admin/telegram/broadcast/page.tsx`
   - `BroadcastComposer` component:
     - Message editor with rich text
     - Image upload for broadcast
@@ -497,10 +497,10 @@
   - `BroadcastHistory` component:
     - Table with columns: timestamp, message, target, sent, failed, status
     - Delivery status tracking
-- [ ] 20.2 Create Telegram Analytics page: `app/(admin)/admin/telegram/analytics/page.tsx`
+- [x] 20.2 Create Telegram Analytics page: `app/(admin)/admin/telegram/analytics/page.tsx`
   - Metrics: total registered drivers, active drivers (24h), avg response time, command usage
   - Charts: daily active drivers (line), command usage (pie), assignment acceptance rate (bar)
-- [ ] 20.3 Create Support Tickets page: `app/(admin)/admin/telegram/support/page.tsx`
+- [x] 20.3 Create Support Tickets page: `app/(admin)/admin/telegram/support/page.tsx`
   - Real-time ticket notifications via WebSocket
   - Status and priority filters
   - Ticket assignment to support agents
@@ -510,16 +510,16 @@
 ## F21: Frontend Testing
 **Source:** Combined Task 38
 
-- [ ] 21.1 Test DriverList component with real-time updates
-- [ ] 21.2 Test BookingDetailView with driver assignment
-- [ ] 21.3 Test EmergencyAlertList with notifications
-- [ ] 21.4 Test AdminLayout with role-based navigation
-- [ ] 21.5 Use React Testing Library and Jest
+- [x] 21.1 Test DriverList component with real-time updates
+- [x] 21.2 Test BookingDetailView with driver assignment
+- [x] 21.3 Test EmergencyAlertList with notifications
+- [x] 21.4 Test AdminLayout with role-based navigation
+- [x] 21.5 Use React Testing Library and Jest
 
 ---
 
 ## F22: Documentation
 **Source:** Combined Task 39
 
-- [ ] 22.1 Write admin panel user guide
-- [ ] 22.2 Write Telegram bot onboarding guide for drivers
+- [x] 22.1 Write admin panel user guide (`docs/guides/admin-panel-user-guide.md`)
+- [x] 22.2 Write Telegram bot onboarding guide for drivers (`docs/guides/telegram-bot-guide.md`)
