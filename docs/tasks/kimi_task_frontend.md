@@ -510,11 +510,11 @@
 ## F21: Frontend Testing
 **Source:** Combined Task 38
 
-- [ ] 21.1 Test DriverList component with real-time updates
-- [ ] 21.2 Test BookingDetailView with driver assignment
-- [ ] 21.3 Test EmergencyAlertList with notifications
-- [ ] 21.4 Test AdminLayout with role-based navigation
-- [ ] 21.5 Use React Testing Library and Jest
+- [x] 21.1 Test DriverList component with real-time updates
+- [x] 21.2 Test BookingDetailView with driver assignment
+- [x] 21.3 Test EmergencyAlertList with notifications
+- [x] 21.4 Test AdminLayout with role-based navigation
+- [x] 21.5 Use React Testing Library and Jest
 
 ---
 
