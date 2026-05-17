@@ -148,6 +148,26 @@ export default function LoginPage() {
               {loading ? <Loader2 size={16} className="animate-spin" /> : null}
               {loading ? 'Signing in…' : 'Sign In'}
             </button>
+
+            <div style={{ marginTop: 16, textAlign: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                style={{ width: '100%', color: 'var(--text-muted)', fontSize: 13 }}
+                onClick={() => {
+                  setAuth({
+                    id: 'dev-user',
+                    name: 'Dev Admin',
+                    email: 'admin@derlg.com',
+                    role: 'ADMIN',
+                    adminRole: 'SUPER_ADMIN',
+                  }, 'dev-token')
+                  router.replace('/admin/dashboard')
+                }}
+              >
+                Dev Login (no backend)
+              </button>
+            </div>
           </form>
         </div>
 

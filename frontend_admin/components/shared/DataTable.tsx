@@ -9,6 +9,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Search,
 } from 'lucide-react'
 import {
   Table,
@@ -120,17 +121,17 @@ export function DataTable<T extends Record<string, any> = Record<string, any>>({
   }
 
   const SortIcon = ({ colKey }: { colKey: string }) => {
-    if (sortKey !== colKey) return <ArrowUpDown className="size-3.5 text-muted-foreground/50" />
-    if (sortDir === 'asc') return <ArrowUp className="size-3.5 text-primary" />
-    return <ArrowDown className="size-3.5 text-primary" />
+    if (sortKey !== colKey) return <ArrowUpDown className="size-3.5 opacity-40" />
+    if (sortDir === 'asc') return <ArrowUp className="size-3.5" style={{ color: 'var(--brand-primary)' }} />
+    return <ArrowDown className="size-3.5" style={{ color: 'var(--brand-primary)' }} />
   }
 
   if (loading) {
     return (
-      <div className="rounded-lg border overflow-hidden">
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border-default)' }}>
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted/50">
+            <TableRow style={{ background: 'var(--bg-elevated)' }}>
               {columns.map((col) => (
                 <TableHead key={col.key} style={{ width: col.width }}>
                   {col.label}
@@ -141,7 +142,7 @@ export function DataTable<T extends Record<string, any> = Record<string, any>>({
           </TableHeader>
           <TableBody>
             {Array.from({ length: 5 }).map((_, i) => (
-              <TableRow key={i}>
+              <TableRow key={i} style={{ borderBottom: '1px solid var(--border-strong)' }}>
                 {columns.map((col) => (
                   <TableCell key={col.key}>
                     <Skeleton className="h-4 w-[70%]" />
@@ -149,7 +150,7 @@ export function DataTable<T extends Record<string, any> = Record<string, any>>({
                 ))}
                 {actions && (
                   <TableCell>
-                    <Skeleton className="h-7 w-20" />
+                    <Skeleton className="h-8 w-20" />
                   </TableCell>
                 )}
               </TableRow>
@@ -162,28 +163,51 @@ export function DataTable<T extends Record<string, any> = Record<string, any>>({
 
   if (!data.length) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border py-16 text-center">
-        <p className="text-sm font-medium text-muted-foreground">{emptyMessage}</p>
+      <div
+        className="flex flex-col items-center justify-center rounded-xl border text-center"
+        style={{
+          borderColor: 'var(--border-default)',
+          padding: '64px 24px',
+          gap: 16,
+          animation: 'fadeIn 0.4s ease',
+        }}
+      >
+        <Search size={40} style={{ color: 'var(--text-muted)', opacity: 0.4 }} />
+        <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{emptyMessage}</p>
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Try adjusting your filters or search query</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-lg border overflow-hidden">
+    <div className="space-y-4">
+      <div
+        className="rounded-xl border overflow-hidden"
+        style={{ borderColor: 'var(--border-default)', boxShadow: 'var(--shadow-sm)', animation: 'fadeIn 0.4s ease' }}
+      >
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/50 hover:bg-muted/50">
+              <TableRow style={{ background: 'var(--bg-elevated)' }}>
                 {columns.map((col) => (
                   <TableHead
                     key={col.key}
                     style={{ width: col.width }}
                     className={cn(
-                      'whitespace-nowrap',
-                      col.sortable && 'cursor-pointer select-none'
+                      'whitespace-nowrap select-none',
+                      col.sortable && 'cursor-pointer hover:text-foreground'
                     )}
                     onClick={() => col.sortable && handleSort(col.key)}
+                    aria-sort={
+                      col.sortable
+                        ? sortKey === col.key
+                          ? sortDir === 'asc'
+                            ? 'ascending'
+                            : 'descending'
+                          : 'none'
+                        : undefined
+                    }
+                    scope="col"
                   >
                     <div className="flex items-center gap-1.5">
                       {col.label}
@@ -192,7 +216,7 @@ export function DataTable<T extends Record<string, any> = Record<string, any>>({
                   </TableHead>
                 ))}
                 {actions && (
-                  <TableHead className="w-[120px] whitespace-nowrap">Actions</TableHead>
+                  <TableHead className="w-[120px] whitespace-nowrap" scope="col">Actions</TableHead>
                 )}
               </TableRow>
             </TableHeader>
@@ -205,6 +229,10 @@ export function DataTable<T extends Record<string, any> = Record<string, any>>({
                     onRowClick && 'cursor-pointer',
                     'group'
                   )}
+                  style={{
+                    transition: 'background-color var(--transition-fast)',
+                    borderBottom: '1px solid var(--border-default)',
+                  }}
                 >
                   {columns.map((col) => (
                     <TableCell key={col.key} className="whitespace-nowrap">
@@ -226,50 +254,54 @@ export function DataTable<T extends Record<string, any> = Record<string, any>>({
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between px-2">
-          <span className="text-sm text-muted-foreground">
+        <div className="flex items-center justify-between px-2 flex-wrap gap-3">
+          <span className="text-sm tabular-nums" style={{ color: 'var(--text-muted)' }}>
             {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, totalItems)} of{' '}
             {totalItems}
           </span>
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon"
+              className="size-10"
               onClick={() => setPage(1)}
               disabled={safePage === 1}
               aria-label="First page"
             >
-              <ChevronsLeft className="size-3.5" />
+              <ChevronsLeft className="size-4" />
             </Button>
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon"
+              className="size-10"
               onClick={() => setPage(safePage - 1)}
               disabled={safePage === 1}
               aria-label="Previous page"
             >
-              <ChevronLeft className="size-3.5" />
+              <ChevronLeft className="size-4" />
             </Button>
-            <span className="min-w-[4rem] text-center text-sm font-medium tabular-nums">
+            <span className="min-w-[4.5rem] text-center text-sm font-medium tabular-nums px-2">
               {safePage} / {totalPages}
             </span>
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon"
+              className="size-10"
               onClick={() => setPage(safePage + 1)}
               disabled={safePage === totalPages}
               aria-label="Next page"
             >
-              <ChevronRight className="size-3.5" />
+              <ChevronRight className="size-4" />
             </Button>
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon"
+              className="size-10"
               onClick={() => setPage(totalPages)}
               disabled={safePage === totalPages}
               aria-label="Last page"
             >
-              <ChevronsRight className="size-3.5" />
+              <ChevronsRight className="size-4" />
             </Button>
           </div>
         </div>

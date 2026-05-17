@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { Plus, Edit2, Eye, BedDouble, Trash2 } from 'lucide-react'
+import { Plus, Edit2, Eye, BedDouble, Trash2, Star } from 'lucide-react'
 import { hotelsApi } from '@/lib/api'
 import { DataTable } from '@/components/shared/DataTable'
 import { SearchInput, PageHeader, ConfirmDialog } from '@/components/shared'
@@ -189,8 +189,14 @@ export function HotelList() {
               label: 'Rating',
               render: (r: Hotel) =>
                 r.rating ? (
-                  <span className="text-amber-400">
-                    {'★'.repeat(Math.round(r.rating))}
+                  <span className="inline-flex items-center gap-0.5">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star
+                        key={i}
+                        size={14}
+                        className={i < Math.round(r.rating || 0) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground'}
+                      />
+                    ))}
                     <span className="text-muted-foreground text-xs ml-1">
                       {r.rating}
                     </span>

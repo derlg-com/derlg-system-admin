@@ -158,7 +158,7 @@ export function VehicleList() {
       />
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-4 mb-5">
         <SearchInput
           value={search}
           onChange={setSearch}
@@ -169,6 +169,7 @@ export function VehicleList() {
           value={categoryFilter}
           onChange={setCategoryFilter}
           options={[
+            { label: 'All Categories', value: '' },
             { label: 'Van', value: 'VAN' },
             { label: 'Bus', value: 'BUS' },
             { label: 'Tuk Tuk', value: 'TUK_TUK' },
@@ -179,6 +180,7 @@ export function VehicleList() {
           value={tierFilter}
           onChange={setTierFilter}
           options={[
+            { label: 'All Tiers', value: '' },
             { label: 'Standard', value: 'STANDARD' },
             { label: 'VIP', value: 'VIP' },
           ]}

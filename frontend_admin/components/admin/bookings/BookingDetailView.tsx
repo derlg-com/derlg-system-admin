@@ -111,12 +111,12 @@ export function BookingDetailView({ bookingId }: BookingDetailViewProps) {
   const guide = booking.guide || null
   const isEditable = ['RESERVED', 'CONFIRMED'].includes(booking.status)
 
-  const statusColors: Record<string, string> = {
-    RESERVED: 'text-amber-400 bg-amber-400/10',
-    CONFIRMED: 'text-emerald-400 bg-emerald-400/10',
-    COMPLETED: 'text-blue-400 bg-blue-400/10',
-    CANCELLED: 'text-red-400 bg-red-400/10',
-    REFUNDED: 'text-slate-400 bg-slate-400/10',
+  const statusColors: Record<string, { text: string; bg: string }> = {
+    RESERVED: { text: 'var(--warning)', bg: 'var(--warning-muted)' },
+    CONFIRMED: { text: 'var(--success)', bg: 'var(--success-muted)' },
+    COMPLETED: { text: 'var(--info)', bg: 'var(--info-muted)' },
+    CANCELLED: { text: 'var(--danger)', bg: 'var(--danger-muted)' },
+    REFUNDED: { text: 'var(--text-muted)', bg: 'var(--bg-elevated)' },
   }
 
   return (
@@ -130,11 +130,22 @@ export function BookingDetailView({ bookingId }: BookingDetailViewProps) {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold">{booking.booking_ref}</h1>
-              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[booking.status] || 'text-slate-400 bg-slate-400/10'}`}>
-                {booking.status}
-              </span>
+              {(() => {
+                const cfg = statusColors[booking.status] || { text: 'var(--text-muted)', bg: 'var(--bg-elevated)' }
+                return (
+                  <span
+                    className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                    style={{ color: cfg.text, background: cfg.bg }}
+                  >
+                    {booking.status}
+                  </span>
+                )
+              })()}
               {booking.ai_assisted && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-purple-400/10 text-purple-400 px-2 py-0.5 text-xs">
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
+                  style={{ background: 'var(--brand-primary-muted)', color: 'var(--brand-primary)' }}
+                >
                   <Bot className="size-3" /> AI
                 </span>
               )}

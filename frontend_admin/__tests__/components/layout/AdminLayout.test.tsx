@@ -173,7 +173,7 @@ describe('AdminLayout', () => {
       </AdminLayout>
     )
 
-    expect(screen.getByText('Connected')).toBeInTheDocument()
+    expect(screen.getByText('Live')).toBeInTheDocument()
   })
 
   it('renders sidebar navigation items', () => {

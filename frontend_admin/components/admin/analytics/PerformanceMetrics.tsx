@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowUpDown } from 'lucide-react'
+import { ArrowUpDown, Star } from 'lucide-react'
 import { DataTable } from '@/components/shared/DataTable'
 
 interface PerformanceRecord {
@@ -93,7 +93,7 @@ export function PerformanceMetrics({
             render: (r: PerformanceRecord) =>
               r.average_rating ? (
                 <span className="inline-flex items-center gap-1">
-                  <span className="text-warning">★</span>
+                  <Star size={14} className="fill-amber-400 text-amber-400" />
                   {Number(r.average_rating).toFixed(1)}
                 </span>
               ) : (

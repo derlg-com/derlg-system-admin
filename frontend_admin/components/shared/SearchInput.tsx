@@ -76,27 +76,41 @@ export function SearchInput({
   }
 
   return (
-    <div className={cn('relative flex items-center', className)} style={style}>
+    <div
+      className={cn(
+        // search-box: relative container for absolute children
+        'search-box relative flex items-center w-full',
+        className
+      )}
+      style={style}
+    >
+      {/* search-icon: absolute left, vertically centered, non-interactive */}
       <Search
-        className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none"
+        className="search-icon absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none select-none"
+        aria-hidden="true"
       />
+
+      {/* search-input: paddingLeft via style to guarantee icon clearance */}
       <Input
         type="text"
         value={displayValue}
         onChange={handleChange}
         placeholder={placeholder}
-        className="pl-9 pr-9 h-9 bg-background"
+        className="search-input h-10 w-full rounded-lg text-sm text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary transition-colors"
+        style={{ paddingLeft: 38, paddingRight: displayValue ? 40 : 12, background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }}
       />
+
+      {/* Clear button: absolute right, vertically centered */}
       {displayValue && (
         <Button
           type="button"
           variant="ghost"
-          size="icon-xs"
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          size="icon"
+          className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
           onClick={handleClear}
           aria-label="Clear search"
         >
-          <X className="size-3.5" />
+          <X className="size-4" />
         </Button>
       )}
     </div>
