@@ -17,6 +17,7 @@ import {
   ScrollText,
   Wrench,
   Bot,
+  MessageSquare,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
@@ -41,6 +42,7 @@ const navItems: NavItem[] = [
   { label: 'Emergency', href: '/admin/emergency', icon: AlertTriangle, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER'] },
   { label: 'Discounts', href: '/admin/discounts', icon: Tag, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER'] },
   { label: 'Analytics', href: '/admin/analytics', icon: BarChart3, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER'] },
+  { label: 'Telegram', href: '/admin/telegram/broadcast', icon: MessageSquare, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER', 'FLEET_MANAGER'] },
   { label: 'Admin Users', href: '/admin/users', icon: ShieldCheck, roles: ['SUPER_ADMIN'] },
   { label: 'Audit Logs', href: '/admin/audit-logs', icon: ScrollText, roles: ['SUPER_ADMIN'] },
   { label: 'AI Monitoring', href: '/admin/ai-monitoring', icon: Bot, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER'] },
@@ -106,7 +108,10 @@ export function AdminSidebar({ onNavigate }: AdminSidebarProps) {
       <nav className="flex-1 overflow-y-auto py-3 px-2">
         {filteredNav.map((item) => {
           const Icon = item.icon
-          const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+          const isActive =
+            pathname === item.href ||
+            pathname.startsWith(item.href + '/') ||
+            (item.href === '/admin/telegram/broadcast' && pathname.startsWith('/admin/telegram'))
           return (
             <Link
               key={item.href}

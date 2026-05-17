@@ -487,7 +487,7 @@
 ## F20: Telegram Admin Pages
 **Source:** Telegram design.md
 
-- [ ] 20.1 Create Telegram Broadcast page: `app/(admin)/admin/telegram/broadcast/page.tsx`
+- [x] 20.1 Create Telegram Broadcast page: `app/(admin)/admin/telegram/broadcast/page.tsx`
   - `BroadcastComposer` component:
     - Message editor with rich text
     - Image upload for broadcast
@@ -497,10 +497,10 @@
   - `BroadcastHistory` component:
     - Table with columns: timestamp, message, target, sent, failed, status
     - Delivery status tracking
-- [ ] 20.2 Create Telegram Analytics page: `app/(admin)/admin/telegram/analytics/page.tsx`
+- [x] 20.2 Create Telegram Analytics page: `app/(admin)/admin/telegram/analytics/page.tsx`
   - Metrics: total registered drivers, active drivers (24h), avg response time, command usage
   - Charts: daily active drivers (line), command usage (pie), assignment acceptance rate (bar)
-- [ ] 20.3 Create Support Tickets page: `app/(admin)/admin/telegram/support/page.tsx`
+- [x] 20.3 Create Support Tickets page: `app/(admin)/admin/telegram/support/page.tsx`
   - Real-time ticket notifications via WebSocket
   - Status and priority filters
   - Ticket assignment to support agents
