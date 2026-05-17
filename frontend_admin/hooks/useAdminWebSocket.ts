@@ -1,68 +1,70 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNotificationStore } from '@/store/adminStore'
+import { toast } from 'sonner'
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/v1/admin/ws'
-const RECONNECT_INTERVAL = 10000
+const BASE_RECONNECT_MS = 10_000
+const MAX_RECONNECT_MS = 60_000
+
+export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected'
 
 export function useAdminWebSocket(enabled = true) {
+  const queryClient = useQueryClient()
+  const addNotification = useNotificationStore((s) => s.addNotification)
   const ws = useRef<WebSocket | null>(null)
   const reconnectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const backoffMs = useRef(RECONNECT_INTERVAL)
-  const addNotification = useNotificationStore((s) => s.addNotification)
-
-  const connect = useCallback(() => {
-    if (!enabled || typeof window === 'undefined') return
-
-    const token = localStorage.getItem('admin_access_token')
-    const url = token ? `${WS_URL}?token=${token}` : WS_URL
-
-    try {
-      ws.current = new WebSocket(url)
-
-      ws.current.onopen = () => {
-        console.info('[WS] Connected to admin gateway')
-        backoffMs.current = RECONNECT_INTERVAL
-      }
-
-      ws.current.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
-          handleMessage(data)
-        } catch {
-          // ignore
-        }
-      }
-
-      ws.current.onerror = () => {
-        ws.current?.close()
-      }
-
-      ws.current.onclose = () => {
-        if (!enabled) return
-        reconnectTimeout.current = setTimeout(() => {
-          backoffMs.current = Math.min(backoffMs.current * 1.5, 60000)
-          connect()
-        }, backoffMs.current)
-      }
-    } catch {
-      // ignore connection errors
-    }
-  }, [enabled]) // eslint-disable-line react-hooks/exhaustive-deps
+  const reconnectAttempt = useRef(0)
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
 
   const handleMessage = useCallback(
     (data: any) => {
       switch (data.type) {
-        case 'EMERGENCY_ALERT':
+        case 'DRIVER_STATUS_UPDATE':
+        case 'DRIVER_STATUS_CHANGED': {
+          queryClient.invalidateQueries({ queryKey: ['admin-drivers'] })
+          const name = data.driverName || data.driver_name || 'Driver'
+          const status = data.status || data.newStatus || 'updated'
+          toast.info(`${name} is now ${status}`, { duration: 3000 })
+          addNotification({
+            type: 'DRIVER_STATUS',
+            title: 'Driver Status Update',
+            message: `${name} is now ${status}`,
+            data,
+          })
+          break
+        }
+
+        case 'BOOKING_CREATED':
+        case 'NEW_BOOKING': {
+          queryClient.invalidateQueries({ queryKey: ['admin-bookings'] })
+          queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] })
+          const ref = data.bookingRef || data.booking_ref || 'received'
+          toast.info(`New booking: ${ref}`, { duration: 5000 })
+          addNotification({
+            type: 'BOOKING',
+            title: 'New Booking',
+            message: `Booking ${ref} created`,
+            data,
+          })
+          break
+        }
+
+        case 'EMERGENCY_ALERT': {
+          queryClient.invalidateQueries({ queryKey: ['admin-emergency'] })
+          queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] })
+          const alertType = data.alertType || data.alert_type || 'Emergency'
+          const userName = data.userName || data.user_name || 'Unknown'
           addNotification({
             type: 'EMERGENCY',
             title: '🚨 Emergency Alert',
-            message: `${data.alertType} alert from ${data.userName}`,
+            message: `${alertType} alert from ${userName}`,
             priority: 'urgent',
             data,
           })
-          // Play sound
+          // Play alert sound
           try {
             const ctx = new AudioContext()
             const oscillator = ctx.createOscillator()
@@ -75,28 +77,71 @@ export function useAdminWebSocket(enabled = true) {
             // ignore audio errors
           }
           break
-        case 'NEW_BOOKING':
+        }
+
+        case 'DRIVER_ASSIGNMENT': {
+          queryClient.invalidateQueries({ queryKey: ['admin-bookings'] })
+          queryClient.invalidateQueries({ queryKey: ['admin-drivers'] })
           addNotification({
             type: 'BOOKING',
-            title: 'New Booking',
-            message: `Booking ${data.bookingRef} created`,
+            title: 'Driver Assignment',
+            message: data.message || 'Driver assignment updated',
             data,
           })
           break
-        case 'DRIVER_STATUS_CHANGED':
-          addNotification({
-            type: 'DRIVER_STATUS',
-            title: 'Driver Status Update',
-            message: `${data.driverName} is now ${data.status}`,
-            data,
-          })
-          break
+        }
+
         default:
           break
       }
     },
-    [addNotification],
+    [queryClient, addNotification],
   )
+
+  const connect = useCallback(() => {
+    if (!enabled || typeof window === 'undefined') return
+
+    const token = localStorage.getItem('admin_access_token')
+    const url = token ? `${WS_URL}?token=${token}` : WS_URL
+
+    try {
+      setConnectionStatus('connecting')
+      ws.current = new WebSocket(url)
+
+      ws.current.onopen = () => {
+        reconnectAttempt.current = 0
+        setConnectionStatus('connected')
+      }
+
+      ws.current.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          handleMessage(data)
+        } catch {
+          // ignore parse errors
+        }
+      }
+
+      ws.current.onerror = () => {
+        ws.current?.close()
+      }
+
+      ws.current.onclose = () => {
+        if (!enabled) return
+        const delay = Math.min(
+          BASE_RECONNECT_MS * Math.pow(2, reconnectAttempt.current),
+          MAX_RECONNECT_MS,
+        )
+        reconnectAttempt.current += 1
+        setConnectionStatus('disconnected')
+        reconnectTimeout.current = setTimeout(() => {
+          connect()
+        }, delay)
+      }
+    } catch {
+      setConnectionStatus('disconnected')
+    }
+  }, [enabled, handleMessage])
 
   useEffect(() => {
     connect()
@@ -105,13 +150,6 @@ export function useAdminWebSocket(enabled = true) {
       ws.current?.close()
     }
   }, [connect])
-
-  const connectionStatus =
-    ws.current?.readyState === WebSocket.OPEN
-      ? 'connected'
-      : ws.current?.readyState === WebSocket.CONNECTING
-        ? 'connecting'
-        : 'disconnected'
 
   return { connectionStatus }
 }

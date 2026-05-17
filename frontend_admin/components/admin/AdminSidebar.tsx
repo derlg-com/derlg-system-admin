@@ -21,13 +21,13 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { useAuthStore, useUIStore } from '@/store/adminStore'
+import { cn } from '@/lib/utils'
 
 interface NavItem {
   label: string
   href: string
-  icon: React.ComponentType<{ size?: number; color?: string }>
+  icon: React.ComponentType<{ size?: number; className?: string }>
   roles?: string[]
-  badge?: number
 }
 
 const navItems: NavItem[] = [
@@ -46,7 +46,11 @@ const navItems: NavItem[] = [
   { label: 'AI Monitoring', href: '/admin/ai-monitoring', icon: Bot, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER'] },
 ]
 
-export function AdminSidebar() {
+interface AdminSidebarProps {
+  onNavigate?: () => void
+}
+
+export function AdminSidebar({ onNavigate }: AdminSidebarProps) {
   const pathname = usePathname()
   const { user } = useAuthStore()
   const { sidebarCollapsed, toggleSidebar } = useUIStore()
@@ -56,54 +60,37 @@ export function AdminSidebar() {
   )
 
   return (
-    <aside
+    <div className="flex flex-col h-full w-full"
       style={{
         width: sidebarCollapsed ? 'var(--sidebar-collapsed)' : 'var(--sidebar-width)',
-        minHeight: '100vh',
-        background: 'var(--bg-surface)',
-        borderRight: '1px solid var(--border-default)',
-        display: 'flex',
-        flexDirection: 'column',
         transition: 'width var(--transition-normal)',
-        flexShrink: 0,
-        position: 'sticky',
-        top: 0,
-        zIndex: 50,
         overflow: 'hidden',
       }}
     >
       {/* Logo */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: sidebarCollapsed ? 'center' : 'space-between',
-        padding: sidebarCollapsed ? '20px 0' : '20px 20px',
-        borderBottom: '1px solid var(--border-default)',
-        height: 64,
-        flexShrink: 0,
-      }}>
-        {!sidebarCollapsed && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 8,
-              background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 14, fontWeight: 700, color: 'white',
-            }}>D</div>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>DerLg</div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>ADMIN PANEL</div>
-            </div>
+      <div className="flex items-center justify-between h-16 shrink-0 border-b px-5"
+        style={{ borderColor: 'var(--border-default)' }}
+      >
+        <div className={cn('flex items-center gap-2.5', sidebarCollapsed && 'hidden')}>
+          <div className="flex size-8 items-center justify-center rounded-lg text-sm font-bold text-white"
+            style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))' }}
+          >
+            D
+          </div>
+          <div className="leading-tight">
+            <div className="text-[15px] font-bold text-foreground">DerLg</div>
+            <div className="text-[10px] tracking-wider text-muted-foreground uppercase">Admin Panel</div>
+          </div>
+        </div>
+
+        {sidebarCollapsed && (
+          <div className="flex size-8 items-center justify-center rounded-lg text-sm font-bold text-white mx-auto"
+            style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))' }}
+          >
+            D
           </div>
         )}
-        {sidebarCollapsed && (
-          <div style={{
-            width: 32, height: 32, borderRadius: 8,
-            background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 14, fontWeight: 700, color: 'white',
-          }}>D</div>
-        )}
+
         {!sidebarCollapsed && (
           <button
             className="btn btn-ghost btn-icon btn-sm"
@@ -116,7 +103,7 @@ export function AdminSidebar() {
       </div>
 
       {/* Nav items */}
-      <nav style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>
+      <nav className="flex-1 overflow-y-auto py-3 px-2">
         {filteredNav.map((item) => {
           const Icon = item.icon
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
@@ -125,37 +112,19 @@ export function AdminSidebar() {
               key={item.href}
               href={item.href}
               title={sidebarCollapsed ? item.label : undefined}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: sidebarCollapsed ? '10px 0' : '10px 12px',
-                borderRadius: 8,
-                marginBottom: 2,
-                textDecoration: 'none',
-                color: isActive ? 'var(--brand-primary)' : 'var(--text-secondary)',
-                background: isActive ? 'var(--brand-primary-muted)' : 'transparent',
-                fontWeight: isActive ? 600 : 400,
-                fontSize: 13,
-                transition: 'all var(--transition-fast)',
-                justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-                position: 'relative',
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'
-              }}
+              onClick={onNavigate}
+              className={cn(
+                'flex items-center gap-2.5 rounded-lg mb-0.5 text-sm transition-colors',
+                sidebarCollapsed ? 'justify-center py-2.5 px-0' : 'px-3 py-2.5',
+                isActive
+                  ? 'font-semibold text-primary bg-primary/10'
+                  : 'font-normal text-muted-foreground hover:text-foreground hover:bg-accent'
+              )}
             >
               <Icon size={17} />
               {!sidebarCollapsed && <span>{item.label}</span>}
               {isActive && !sidebarCollapsed && (
-                <div style={{
-                  width: 3, height: '60%', borderRadius: 2,
-                  background: 'var(--brand-primary)',
-                  position: 'absolute', right: 8,
-                }} />
+                <div className="ml-auto w-0.5 h-5 rounded-full bg-primary" />
               )}
             </Link>
           )
@@ -164,7 +133,9 @@ export function AdminSidebar() {
 
       {/* Expand button when collapsed */}
       {sidebarCollapsed && (
-        <div style={{ padding: '12px 0', borderTop: '1px solid var(--border-default)', display: 'flex', justifyContent: 'center' }}>
+        <div className="flex justify-center py-3 border-t"
+          style={{ borderColor: 'var(--border-default)' }}
+        >
           <button className="btn btn-ghost btn-icon btn-sm" onClick={toggleSidebar} title="Expand sidebar">
             <ChevronRight size={16} />
           </button>
@@ -173,27 +144,20 @@ export function AdminSidebar() {
 
       {/* User section */}
       {!sidebarCollapsed && user && (
-        <div style={{
-          padding: '12px 16px',
-          borderTop: '1px solid var(--border-default)',
-          display: 'flex', alignItems: 'center', gap: 10,
-        }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: '50%',
-            background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 13, fontWeight: 600, color: 'white', flexShrink: 0,
-          }}>
+        <div className="flex items-center gap-2.5 px-4 py-3 border-t shrink-0"
+          style={{ borderColor: 'var(--border-default)' }}
+        >
+          <div className="flex size-8 items-center justify-center rounded-full text-sm font-semibold text-white shrink-0"
+            style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))' }}
+          >
             {user.name?.[0]?.toUpperCase()}
           </div>
-          <div style={{ overflow: 'hidden' }}>
-            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {user.name}
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{user.adminRole || user.role}</div>
+          <div className="min-w-0">
+            <div className="text-sm font-medium truncate text-foreground">{user.name}</div>
+            <div className="text-xs text-muted-foreground">{user.adminRole || user.role}</div>
           </div>
         </div>
       )}
-    </aside>
+    </div>
   )
 }

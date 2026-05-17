@@ -1,126 +1,104 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
 import { Bell, Check, Trash2 } from 'lucide-react'
-import { useNotificationStore, AdminNotification } from '@/store/adminStore'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { useNotificationStore, type AdminNotification } from '@/store/adminStore'
 import { formatDistanceToNow } from 'date-fns'
+import { cn } from '@/lib/utils'
+
+const typeIcon: Record<AdminNotification['type'], string> = {
+  EMERGENCY: '🚨',
+  BOOKING: '📋',
+  DRIVER_STATUS: '🚗',
+  SYSTEM: '⚙️',
+}
+
+const typeColor: Record<AdminNotification['type'], string> = {
+  EMERGENCY: 'text-destructive',
+  BOOKING: 'text-primary',
+  DRIVER_STATUS: 'text-emerald-500',
+  SYSTEM: 'text-muted-foreground',
+}
 
 export function NotificationBell() {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
   const { notifications, unreadCount, markRead, markAllRead, clearAll } = useNotificationStore()
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  const typeIcon: Record<AdminNotification['type'], string> = {
-    EMERGENCY: '🚨',
-    BOOKING: '📋',
-    DRIVER_STATUS: '🚗',
-    SYSTEM: '⚙️',
-  }
-
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button
-        id="notification-bell"
-        className="btn btn-ghost btn-icon"
-        onClick={() => setOpen((o) => !o)}
-        style={{ position: 'relative' }}
-        title="Notifications"
-      >
-        <Bell size={18} />
-        {unreadCount > 0 && (
-          <span style={{
-            position: 'absolute', top: 4, right: 4,
-            background: 'var(--danger)', color: 'white',
-            borderRadius: '50%', width: 16, height: 16,
-            fontSize: 10, fontWeight: 700,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            lineHeight: 1,
-          }}>
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
-        )}
-      </button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
+          <Bell size={18} />
+          {unreadCount > 0 && (
+            <Badge
+              variant="destructive"
+              className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px] font-bold flex items-center justify-center"
+            >
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </Badge>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
 
-      {open && (
-        <div style={{
-          position: 'absolute', right: 0, top: 'calc(100% + 8px)',
-          width: 360, maxHeight: 480,
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-default)',
-          borderRadius: 12,
-          boxShadow: 'var(--shadow-lg)',
-          zIndex: 200,
-          display: 'flex', flexDirection: 'column',
-          animation: 'fadeIn 0.15s ease',
-        }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '14px 16px',
-            borderBottom: '1px solid var(--border-default)',
-          }}>
-            <span style={{ fontWeight: 600, fontSize: 14 }}>Notifications</span>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {unreadCount > 0 && (
-                <button className="btn btn-ghost btn-sm" onClick={markAllRead} title="Mark all read">
-                  <Check size={13} /> All read
-                </button>
-              )}
-              {notifications.length > 0 && (
-                <button className="btn btn-ghost btn-icon btn-sm" onClick={clearAll} title="Clear all">
-                  <Trash2 size={13} />
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div style={{ overflowY: 'auto', flex: 1 }}>
-            {notifications.length === 0 ? (
-              <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                No notifications
-              </div>
-            ) : (
-              notifications.map((n) => (
-                <div
-                  key={n.id}
-                  onClick={() => markRead(n.id)}
-                  style={{
-                    padding: '12px 16px',
-                    borderBottom: '1px solid var(--border-subtle)',
-                    cursor: 'pointer',
-                    background: n.read ? 'transparent' : 'var(--brand-primary-muted)',
-                    transition: 'background var(--transition-fast)',
-                    display: 'flex', gap: 10,
-                  }}
-                >
-                  <span style={{ fontSize: 18, flexShrink: 0 }}>{typeIcon[n.type]}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 500, fontSize: 13, color: n.priority === 'urgent' ? 'var(--danger)' : 'var(--text-primary)' }}>
-                      {n.title}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {n.message}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                      {formatDistanceToNow(new Date(n.timestamp), { addSuffix: true })}
-                    </div>
-                  </div>
-                  {!n.read && (
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--brand-primary)', flexShrink: 0, marginTop: 4 }} />
-                  )}
-                </div>
-              ))
+      <DropdownMenuContent align="end" className="w-80 p-0">
+        <div className="flex items-center justify-between px-3 py-2.5 border-b"
+          style={{ borderColor: 'var(--border-default)' }}
+        >
+          <DropdownMenuLabel className="px-0 py-0 text-sm font-semibold">Notifications</DropdownMenuLabel>
+          <div className="flex items-center gap-1">
+            {unreadCount > 0 && (
+              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={markAllRead}>
+                <Check size={12} /> All read
+              </Button>
+            )}
+            {notifications.length > 0 && (
+              <Button variant="ghost" size="icon-xs" className="h-7 w-7" onClick={clearAll} title="Clear all">
+                <Trash2 size={12} />
+              </Button>
             )}
           </div>
         </div>
-      )}
-    </div>
+
+        <div className="max-h-80 overflow-y-auto">
+          {notifications.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">No notifications</div>
+          ) : (
+            notifications.map((n) => (
+              <DropdownMenuItem
+                key={n.id}
+                onClick={() => markRead(n.id)}
+                className={cn(
+                  'flex gap-3 px-3 py-3 cursor-pointer rounded-none border-b last:border-0',
+                  !n.read && 'bg-primary/5'
+                )}
+                style={{ borderColor: 'var(--border-subtle)' }}
+              >
+                <span className="text-lg shrink-0">{typeIcon[n.type]}</span>
+                <div className="flex-1 min-w-0">
+                  <p className={cn('text-sm font-medium truncate', n.priority === 'urgent' ? 'text-destructive' : 'text-foreground')}>
+                    {n.title}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">{n.message}</p>
+                  <p className="text-[11px] text-muted-foreground/70 mt-1">
+                    {formatDistanceToNow(new Date(n.timestamp), { addSuffix: true })}
+                  </p>
+                </div>
+                {!n.read && (
+                  <div className="shrink-0 w-2 h-2 rounded-full bg-primary mt-1" />
+                )}
+              </DropdownMenuItem>
+            ))
+          )}
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

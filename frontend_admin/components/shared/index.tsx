@@ -1,15 +1,24 @@
 'use client'
 
+export { DataTable, type Column, type FilterConfig } from './DataTable'
+export { SearchInput } from './SearchInput'
+export { FilterDropdown, type FilterOption } from './FilterDropdown'
+export { ConfirmDialog } from './ConfirmDialog'
+export { ImageUpload } from './ImageUpload'
+export { AccessDenied } from './AccessDenied'
+export { RequireAuth } from './RequireAuth'
+
 import { Search } from 'lucide-react'
 
-interface SearchInputProps {
+// Legacy simple search input (kept for backwards compatibility)
+interface LegacySearchInputProps {
   value: string
   onChange: (v: string) => void
   placeholder?: string
   style?: React.CSSProperties
 }
 
-export function SearchInput({ value, onChange, placeholder = 'Search...', style }: SearchInputProps) {
+export function LegacySearchInput({ value, onChange, placeholder = 'Search...', style }: LegacySearchInputProps) {
   return (
     <div className="search-bar" style={{ minWidth: 220, ...style }}>
       <Search size={15} color="var(--text-muted)" />
@@ -19,81 +28,6 @@ export function SearchInput({ value, onChange, placeholder = 'Search...', style 
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
       />
-    </div>
-  )
-}
-
-// Filter Dropdown
-interface FilterOption {
-  label: string
-  value: string
-}
-
-interface FilterDropdownProps {
-  value: string
-  onChange: (v: string) => void
-  options: FilterOption[]
-  placeholder?: string
-  style?: React.CSSProperties
-}
-
-export function FilterDropdown({ value, onChange, options, placeholder = 'All', style }: FilterDropdownProps) {
-  return (
-    <select
-      className="form-select"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      style={{ width: 'auto', minWidth: 130, ...style }}
-    >
-      <option value="">{placeholder}</option>
-      {options.map((opt) => (
-        <option key={opt.value} value={opt.value}>{opt.label}</option>
-      ))}
-    </select>
-  )
-}
-
-// Confirm Dialog
-interface ConfirmDialogProps {
-  open: boolean
-  title: string
-  message: string
-  confirmLabel?: string
-  cancelLabel?: string
-  variant?: 'danger' | 'primary'
-  onConfirm: () => void
-  onCancel: () => void
-  loading?: boolean
-}
-
-export function ConfirmDialog({
-  open, title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel',
-  variant = 'danger', onConfirm, onCancel, loading,
-}: ConfirmDialogProps) {
-  if (!open) return null
-  return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3 className="modal-title">{title}</h3>
-        </div>
-        <div className="modal-body">
-          <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>{message}</p>
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onCancel} disabled={loading}>
-            {cancelLabel}
-          </button>
-          <button
-            className={`btn btn-${variant === 'danger' ? 'danger' : 'primary'}`}
-            onClick={onConfirm}
-            disabled={loading}
-          >
-            {loading ? <span className="spinner" style={{ width: 14, height: 14 }} /> : null}
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
     </div>
   )
 }
