@@ -21,11 +21,12 @@ import { toast } from 'sonner'
 interface Vehicle {
   id: string
   name: string
-  category: 'VAN' | 'BUS' | 'TUK_TUK'
+  vehicle_type: 'VAN' | 'BUS' | 'TUK_TUK'
+  license_plate?: string
   capacity: number
-  tier: 'STANDARD' | 'VIP'
-  price_per_day: number
-  price_per_km?: number
+  pricing_model: 'PER_DAY' | 'PER_KM' | 'FIXED'
+  price_usd: number
+  province?: string
   features?: string[]
   images?: string[]
   assigned_driver?: { id: string; driver_name: string }
@@ -109,34 +110,28 @@ export function VehicleList() {
   const columns = [
     { key: 'name', label: 'Name', sortable: true },
     {
-      key: 'category',
+      key: 'vehicle_type',
       label: 'Category',
       render: (r: Vehicle) => (
         <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
-          {r.category.replace(/_/g, ' ')}
+          {r.vehicle_type.replace(/_/g, ' ')}
         </span>
       ),
     },
     { key: 'capacity', label: 'Capacity', sortable: true },
     {
-      key: 'tier',
-      label: 'Tier',
+      key: 'pricing_model',
+      label: 'Pricing',
       render: (r: Vehicle) => (
-        <span
-          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-            r.tier === 'VIP'
-              ? 'bg-amber-400/10 text-amber-400'
-              : 'bg-slate-400/10 text-slate-400'
-          }`}
-        >
-          {r.tier}
+        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-slate-400/10 text-slate-400">
+          {r.pricing_model.replace(/_/g, ' ')}
         </span>
       ),
     },
     {
-      key: 'price_per_day',
-      label: 'Price/Day',
-      render: (r: Vehicle) => `$${r.price_per_day?.toFixed(2) || '0.00'}`,
+      key: 'price_usd',
+      label: 'Price (USD)',
+      render: (r: Vehicle) => `$${r.price_usd?.toFixed(2) || '0.00'}`,
     },
     {
       key: 'assigned_driver',
@@ -260,11 +255,12 @@ export function VehicleList() {
             editing
               ? {
                   name: editing.name,
-                  category: editing.category,
+                  vehicle_type: editing.vehicle_type,
+                  license_plate: editing.license_plate,
                   capacity: editing.capacity,
-                  tier: editing.tier,
-                  price_per_day: editing.price_per_day,
-                  price_per_km: editing.price_per_km,
+                  pricing_model: editing.pricing_model,
+                  price_usd: editing.price_usd,
+                  province: editing.province || '',
                   features: editing.features || [],
                   images: editing.images || [],
                 }

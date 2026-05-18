@@ -24,12 +24,10 @@ import {
 } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 
-const ROLES = [
-  'SUPER_ADMIN',
-  'OPERATIONS_MANAGER',
-  'FLEET_MANAGER',
-  'SUPPORT_AGENT',
-] as const
+const S = { background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' } as const
+const LABEL = { color: 'var(--text-secondary)' } as const
+
+const ROLES = ['SUPER_ADMIN', 'OPERATIONS_MANAGER', 'FLEET_MANAGER', 'SUPPORT_AGENT'] as const
 
 const ALL_PERMISSIONS = [
   { key: 'MANAGE_DRIVERS', label: 'Manage Drivers' },
@@ -46,17 +44,15 @@ const ALL_PERMISSIONS = [
 ] as const
 
 const ROLE_PRESETS: Record<string, string[]> = {
-  SUPER_ADMIN: ALL_PERMISSIONS.map((p) => p.key),
-  OPERATIONS_MANAGER: ALL_PERMISSIONS
-    .map((p) => p.key)
-    .filter((k) => k !== 'MANAGE_ADMIN_USERS' && k !== 'VIEW_AUDIT_LOGS'),
+  SUPER_ADMIN: ALL_PERMISSIONS.map(p => p.key),
+  OPERATIONS_MANAGER: ALL_PERMISSIONS.map(p => p.key).filter(k => k !== 'MANAGE_ADMIN_USERS' && k !== 'VIEW_AUDIT_LOGS'),
   FLEET_MANAGER: ['MANAGE_DRIVERS', 'MANAGE_VEHICLES'],
   SUPPORT_AGENT: ['MANAGE_BOOKINGS', 'MANAGE_CUSTOMERS'],
 }
 
 const adminUserSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Invalid email'),
-  name: z.string().min(1, 'Name is required'),
+  full_name: z.string().min(1, 'Name is required'),
   admin_role: z.enum(ROLES),
   permissions: z.record(z.string(), z.boolean()).optional(),
   password: z.string().min(6, 'Password must be at least 6 characters').optional(),
@@ -72,20 +68,11 @@ interface AdminUserFormProps {
   isEditing?: boolean
 }
 
-export function AdminUserForm({
-  defaultValues,
-  onSubmit,
-  onCancel,
-  loading = false,
-  isEditing = false,
-}: AdminUserFormProps) {
+export function AdminUserForm({ defaultValues, onSubmit, onCancel, loading = false, isEditing = false }: AdminUserFormProps) {
   const form = useForm<AdminUserFormData>({
     resolver: zodResolver(adminUserSchema),
     defaultValues: {
-      email: '',
-      name: '',
-      admin_role: 'SUPPORT_AGENT',
-      permissions: {},
+      email: '', full_name: '', admin_role: 'SUPPORT_AGENT', permissions: {},
       ...defaultValues,
     },
   })
@@ -93,14 +80,13 @@ export function AdminUserForm({
   const watchedRole = form.watch('admin_role')
   const watchedPermissions = form.watch('permissions')
 
-  // Apply role preset when role changes (only if permissions are empty or user hasn't customized)
   useEffect(() => {
     const current = form.getValues('permissions') || {}
-    const hasCustom = Object.values(current).some((v) => v)
+    const hasCustom = Object.values(current).some(v => v)
     if (!hasCustom && watchedRole) {
       const preset = ROLE_PRESETS[watchedRole] || []
       const newPerms: Record<string, boolean> = {}
-      preset.forEach((k) => { newPerms[k] = true })
+      preset.forEach(k => { newPerms[k] = true })
       form.setValue('permissions', newPerms, { shouldValidate: false })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -115,104 +101,68 @@ export function AdminUserForm({
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
         <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Full Name *</FormLabel>
-                <FormControl>
-                  <Input placeholder="e.g. John Doe" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email *</FormLabel>
-                <FormControl>
-                  <Input
-                    type="email"
-                    placeholder="john@derlg.com"
-                    {...field}
-                    disabled={isEditing}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <FormField
-          control={form.control}
-          name="admin_role"
-          render={({ field }) => (
+          <FormField control={form.control} name="full_name" render={({ field }) => (
             <FormItem>
-              <FormLabel>Admin Role *</FormLabel>
-              <Select value={field.value} onValueChange={field.onChange}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {ROLES.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {r.replace(/_/g, ' ')}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FormLabel style={LABEL}>Full Name *</FormLabel>
+              <FormControl><Input placeholder="e.g. John Doe" {...field} style={S} /></FormControl>
               <FormMessage />
             </FormItem>
-          )}
-        />
+          )} />
+
+          <FormField control={form.control} name="email" render={({ field }) => (
+            <FormItem>
+              <FormLabel style={LABEL}>Email *</FormLabel>
+              <FormControl>
+                <Input type="email" placeholder="john@derlg.com" {...field} disabled={isEditing}
+                  style={{ ...S, opacity: isEditing ? 0.6 : 1 }} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+        </div>
+
+        <FormField control={form.control} name="admin_role" render={({ field }) => (
+          <FormItem>
+            <FormLabel style={LABEL}>Admin Role *</FormLabel>
+            <Select value={field.value} onValueChange={field.onChange}>
+              <FormControl><SelectTrigger style={S} className="w-full h-10"><SelectValue placeholder="Select role" /></SelectTrigger></FormControl>
+              <SelectContent className="z-[1100] min-w-[200px]">
+                {ROLES.map(r => <SelectItem key={r} value={r}>{r.replace(/_/g, ' ')}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )} />
 
         {!isEditing && (
-          <FormField
-            control={form.control}
-            name="password"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Temporary Password *</FormLabel>
-                <FormControl>
-                  <Input type="password" placeholder="Min 6 characters" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <FormField control={form.control} name="password" render={({ field }) => (
+            <FormItem>
+              <FormLabel style={LABEL}>Temporary Password *</FormLabel>
+              <FormControl><Input type="password" placeholder="Min 6 characters" {...field} style={S} /></FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
         )}
 
         <div>
-          <FormLabel>Permissions</FormLabel>
+          <FormLabel style={LABEL}>Permissions</FormLabel>
           <div className="grid grid-cols-2 gap-2 mt-2">
             {ALL_PERMISSIONS.map((perm) => (
-              <label
-                key={perm.key}
-                className="flex items-center gap-2 p-2 rounded-md border border-border-default hover:bg-muted cursor-pointer"
-              >
-                <Checkbox
-                  checked={!!watchedPermissions?.[perm.key]}
-                  onCheckedChange={() => togglePermission(perm.key)}
-                />
-                <span className="text-sm">{perm.label}</span>
+              <label key={perm.key} className="flex items-center gap-2 p-2.5 rounded-lg cursor-pointer transition-colors"
+                style={{ background: 'var(--bg-elevated)', border: `1px solid ${watchedPermissions?.[perm.key] ? 'var(--brand-primary)' : 'var(--border-strong)'}` }}>
+                <Checkbox checked={!!watchedPermissions?.[perm.key]} onCheckedChange={() => togglePermission(perm.key)} />
+                <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{perm.label}</span>
               </label>
             ))}
           </div>
         </div>
 
         <div className="flex justify-end gap-3 pt-2">
-          <Button type="button" variant="secondary" onClick={onCancel} disabled={loading}>
+          <Button type="button" variant="secondary" onClick={onCancel} disabled={loading}
+            style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }}>
             Cancel
           </Button>
-          <Button type="submit" disabled={loading}>
+          <Button type="submit" disabled={loading} style={{ background: 'var(--brand-primary)', color: '#fff' }}>
             {loading && <Loader2 className="size-4 animate-spin mr-1" />}
             {isEditing ? 'Save Changes' : 'Create Admin'}
           </Button>

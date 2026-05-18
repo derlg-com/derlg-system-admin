@@ -139,14 +139,15 @@ export function GuideList() {
 
   const defaultFormValues: Partial<GuideFormData> | undefined = editing
     ? {
-        name: editing.name || editing.user?.name,
+        user_id: editing.id,
         bio: editing.bio,
         profile_picture: editing.profile_picture,
         languages: editing.languages,
         specialties: editing.specialties,
         experience_years: editing.experience_years,
         certifications: editing.certifications,
-        price_per_day: editing.price_per_day,
+        price_per_day_usd: editing.price_per_day || 0,
+        province: '',
       }
     : undefined
 

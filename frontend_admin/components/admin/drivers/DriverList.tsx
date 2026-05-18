@@ -85,7 +85,7 @@ export function DriverList() {
 
   // Create / Update mutation
   const mutation = useMutation({
-    mutationFn: (d: DriverFormData) =>
+    mutationFn: (d: any) =>
       editing
         ? driversApi.update(editing.id, d)
         : driversApi.create(d),
@@ -132,7 +132,14 @@ export function DriverList() {
   }
 
   const handleFormSubmit = (formData: DriverFormData) => {
-    mutation.mutate(formData)
+    const payload = {
+      driverName: formData.driver_name,
+      driverId: formData.driver_id,
+      phone: formData.phone,
+      telegramId: formData.telegram_id || undefined,
+      vehicleId: formData.vehicle_id || undefined,
+    }
+    mutation.mutate(payload)
   }
 
   const handleDelete = () => {

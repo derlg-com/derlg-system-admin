@@ -104,10 +104,11 @@ export function DiscountCodeList() {
   const defaultFormValues: Partial<DiscountCodeFormData> | undefined = editing
     ? {
         code: editing.code,
-        discount_percentage: editing.discount_percentage ?? editing.discount_value,
+        discount_type: (editing.discount_type as any) || 'PERCENTAGE',
+        value: editing.discount_percentage ?? editing.discount_value ?? 0,
         valid_from: editing.valid_from ? format(new Date(editing.valid_from), "yyyy-MM-dd'T'HH:mm") : '',
         valid_until: editing.valid_until ? format(new Date(editing.valid_until), "yyyy-MM-dd'T'HH:mm") : '',
-        max_usage: editing.max_usage ?? editing.max_uses,
+        max_uses: editing.max_usage ?? editing.max_uses,
       }
     : undefined
 

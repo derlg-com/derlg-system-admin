@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -106,24 +105,38 @@ export function AuditLogViewer() {
     })
   }
 
-  const handleExport = async () => {
-    try {
-      const res = await auditLogsApi.export({
-        start_date: startDate,
-        end_date: endDate,
-        action_type: actionFilter || undefined,
-        admin_user_id: adminFilter || undefined,
-      })
-      const url = URL.createObjectURL(new Blob([res.data]))
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `audit-logs-${startDate}-${endDate}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
-      toast.success('Audit logs exported')
-    } catch {
-      toast.error('Failed to export audit logs')
+  const handleExport = () => {
+    if (logs.length === 0) {
+      toast.error('No audit logs to export')
+      return
     }
+
+    const headers = ['Timestamp', 'Admin', 'Action', 'Resource', 'Resource ID']
+    const rows = logs.map((log) => [
+      log.created_at || log.timestamp || '',
+      log.admin_name || log.admin_user_id || '',
+      (log.action_type || log.action || '').replace(/_/g, ' '),
+      log.resource_type || log.resource || '',
+      log.affected_resource_id || log.entity_id || '',
+    ])
+
+    const escape = (val: string) => {
+      const s = String(val ?? '')
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+        return `"${s.replace(/"/g, '""')}"`
+      }
+      return s
+    }
+
+    const csv = [headers.join(','), ...rows.map((r) => r.map(escape).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `audit-logs-${startDate}-${endDate}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success('Audit logs exported')
   }
 
   return (
@@ -141,21 +154,25 @@ export function AuditLogViewer() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-4 mb-5">
         <div className="relative">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
+          <input
             placeholder="Filter by admin user..."
             value={adminFilter}
             onChange={(e) => setAdminFilter(e.target.value)}
-            className="pl-8 w-52"
+            className="h-10 rounded-lg text-sm w-52 transition-colors"
+            style={{ paddingLeft: 32, paddingRight: 12, background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }}
           />
         </div>
 
-        <Select value={actionFilter} onValueChange={setActionFilter}>
-          <SelectTrigger className="w-48">
+        <Select value={actionFilter || '__all__'} onValueChange={(val) => setActionFilter(val === '__all__' ? '' : val)}>
+          <SelectTrigger
+            className="w-48 h-10 rounded-lg text-sm"
+            style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }}
+          >
             <SelectValue placeholder="All Action Types" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Action Types</SelectItem>
+            <SelectItem value="__all__">All Action Types</SelectItem>
             {ACTION_TYPES.map((t) => (
               <SelectItem key={t} value={t}>
                 {t.replace(/_/g, ' ')}
@@ -165,19 +182,19 @@ export function AuditLogViewer() {
         </Select>
 
         <input
-          className="form-input"
+          className="h-10 rounded-lg text-sm transition-colors"
           type="date"
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
-          style={{ width: 'auto' }}
+          style={{ padding: '0 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }}
         />
-        <span className="text-muted-foreground">—</span>
+        <span style={{ color: 'var(--text-muted)' }}>—</span>
         <input
-          className="form-input"
+          className="h-10 rounded-lg text-sm transition-colors"
           type="date"
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
-          style={{ width: 'auto' }}
+          style={{ padding: '0 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }}
         />
       </div>
 
@@ -185,7 +202,7 @@ export function AuditLogViewer() {
       <div className="card" style={{ padding: 0 }}>
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-strong)' }}>
               <TableHead className="w-8"></TableHead>
               <TableHead>Timestamp</TableHead>
               <TableHead>Admin</TableHead>
@@ -197,7 +214,7 @@ export function AuditLogViewer() {
           <TableBody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
+                <TableRow key={i} style={{ borderBottom: '1px solid var(--border-strong)' }}>
                   <TableCell colSpan={6}>
                     <Skeleton className="h-8 w-full" />
                   </TableCell>
@@ -205,24 +222,23 @@ export function AuditLogViewer() {
               ))
             ) : logs.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="text-center text-muted-foreground py-8"
-                >
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                   No audit log entries found
                 </TableCell>
               </TableRow>
             ) : (
               logs.map((log) => {
                 const isExpanded = expanded.has(log.id)
-                const changed =
-                  log.changed_fields || log.request_body || log.metadata
+                const changed = log.changed_fields || log.request_body || log.metadata
 
                 return (
                   <>
                     <TableRow
                       key={log.id}
-                      className="cursor-pointer hover:bg-muted/50"
+                      className="cursor-pointer"
+                      style={{ borderBottom: '1px solid var(--border-default)' }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = ''}
                       onClick={() => toggleExpand(log.id)}
                     >
                       <TableCell className="w-8">

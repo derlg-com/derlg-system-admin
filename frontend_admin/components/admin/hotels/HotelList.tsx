@@ -21,8 +21,11 @@ interface Hotel {
   name: string
   description?: string
   location?: { lat: number; lng: number }
+  latitude?: number
+  longitude?: number
   images?: string[]
   rating?: number
+  star_rating?: number
   amenities?: string[]
   check_in_time?: string
   check_out_time?: string
@@ -118,9 +121,10 @@ export function HotelList() {
     ? {
         name: editing.name,
         description: editing.description,
-        location: editing.location,
+        latitude: editing.location?.lat ?? editing.latitude ?? 11.5564,
+        longitude: editing.location?.lng ?? editing.longitude ?? 104.9282,
         images: editing.images,
-        rating: editing.rating,
+        star_rating: editing.rating ?? editing.star_rating,
         amenities: editing.amenities,
         check_in_time: editing.check_in_time,
         check_out_time: editing.check_out_time,
