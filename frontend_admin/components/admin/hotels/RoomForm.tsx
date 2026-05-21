@@ -78,15 +78,6 @@ export function RoomForm({
 
   const selectedAmenities = form.watch('amenities') || []
 
-  const toggleAmenity = (amenity: string) => {
-    const current = form.getValues('amenities') || []
-    if (current.includes(amenity)) {
-      form.setValue('amenities', current.filter((a) => a !== amenity))
-    } else {
-      form.setValue('amenities', [...current, amenity])
-    }
-  }
-
   const handleImagesUploaded = (urls: string[]) => {
     setImageUrls(urls)
     form.setValue('images', urls)
@@ -171,19 +162,28 @@ export function RoomForm({
             <FormItem>
               <FormLabel>Amenities</FormLabel>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-1">
-                {ROOM_AMENITIES.map((amenity) => (
-                  <div
-                    key={amenity}
-                    className="flex items-center gap-2 rounded-md border border-border-default p-2 hover:bg-muted/50 cursor-pointer"
-                    onClick={() => toggleAmenity(amenity)}
-                  >
-                    <Checkbox
-                      checked={selectedAmenities.includes(amenity)}
-                      onCheckedChange={() => toggleAmenity(amenity)}
-                    />
-                    <span className="text-sm">{amenity}</span>
-                  </div>
-                ))}
+                {ROOM_AMENITIES.map((amenity) => {
+                  const isSelected = selectedAmenities.includes(amenity)
+                  return (
+                    <label
+                      key={amenity}
+                      className="flex items-center gap-2 rounded-md border border-border-default p-2 hover:bg-muted/50 cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={(checked) => {
+                          const current = form.getValues('amenities') || []
+                          if (checked === true) {
+                            form.setValue('amenities', [...current, amenity])
+                          } else {
+                            form.setValue('amenities', current.filter((a) => a !== amenity))
+                          }
+                        }}
+                      />
+                      <span className="text-sm">{amenity}</span>
+                    </label>
+                  )
+                })}
               </div>
               <FormMessage />
             </FormItem>

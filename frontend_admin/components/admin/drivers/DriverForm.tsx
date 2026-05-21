@@ -101,16 +101,17 @@ export function DriverForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="driver_name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Full Name *</FormLabel>
+                <FormLabel style={{ color: 'var(--text-secondary)' }}>Full Name *</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g. Sokha Chan" {...field} />
+                  <Input placeholder="e.g. Sokha Chan" {...field}
+                    style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -122,9 +123,10 @@ export function DriverForm({
             name="driver_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Driver ID *</FormLabel>
+                <FormLabel style={{ color: 'var(--text-secondary)' }}>Driver ID *</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g. DLG-DRV-001" {...field} />
+                  <Input placeholder="e.g. DLG-DRV-001" {...field}
+                    style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -136,9 +138,10 @@ export function DriverForm({
             name="phone"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Phone *</FormLabel>
+                <FormLabel style={{ color: 'var(--text-secondary)' }}>Phone *</FormLabel>
                 <FormControl>
-                  <Input placeholder="+855 12 345 678" {...field} />
+                  <Input placeholder="+855 12 345 678" {...field}
+                    style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -150,15 +153,18 @@ export function DriverForm({
             name="vehicle_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Assigned Vehicle</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value || ''}>
+                <FormLabel style={{ color: 'var(--text-secondary)' }}>Assigned Vehicle</FormLabel>
+                <Select
+                  onValueChange={(val) => field.onChange(val === '__none__' ? '' : val)}
+                  value={field.value || '__none__'}
+                >
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} className="w-full h-10">
                       <SelectValue placeholder="Select a vehicle" />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                  <SelectContent className="z-[1100] min-w-[200px]">
+                    <SelectItem value="__none__">None</SelectItem>
                     {vehicles?.map((v: any) => (
                       <SelectItem key={v.id} value={v.id}>
                         {v.name} ({v.category})
@@ -173,8 +179,8 @@ export function DriverForm({
         </div>
 
         {/* Telegram section */}
-        <div className="rounded-lg border border-border-default p-4 space-y-4">
-          <p className="text-sm font-medium text-text-secondary">Telegram Integration</p>
+        <div className="rounded-xl space-y-4" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', padding: '16px 20px' }}>
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Telegram Integration</p>
 
           <div className="grid grid-cols-2 gap-4">
             <FormField
@@ -182,19 +188,24 @@ export function DriverForm({
               name="telegram_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Telegram ID</FormLabel>
+                  <FormLabel style={{ color: 'var(--text-secondary)' }}>Telegram ID</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="@username or numeric ID"
                       {...field}
                       value={field.value || ''}
                       readOnly={isEditing}
-                      className={isEditing ? 'opacity-60' : ''}
+                      style={{
+                        background: 'var(--bg-overlay)',
+                        border: '1px solid var(--border-strong)',
+                        color: 'var(--text-primary)',
+                        opacity: isEditing ? 0.6 : 1,
+                      }}
                     />
                   </FormControl>
                   <FormMessage />
                   {isEditing && (
-                    <p className="text-xs text-muted-foreground">Read-only after registration</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Read-only after registration</p>
                   )}
                 </FormItem>
               )}
@@ -205,7 +216,7 @@ export function DriverForm({
               name="auth_pin"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Auth PIN</FormLabel>
+                  <FormLabel style={{ color: 'var(--text-secondary)' }}>Auth PIN</FormLabel>
                   <div className="flex gap-2">
                     <FormControl>
                       <Input
@@ -214,6 +225,7 @@ export function DriverForm({
                         maxLength={4}
                         className="font-mono tracking-widest"
                         placeholder="4-digit PIN"
+                        style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }}
                       />
                     </FormControl>
                     <Button
@@ -222,6 +234,7 @@ export function DriverForm({
                       size="icon"
                       onClick={regeneratePin}
                       title="Regenerate PIN"
+                      style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-strong)', color: 'var(--text-secondary)' }}
                     >
                       <RefreshCw className="size-4" />
                     </Button>
@@ -236,15 +249,18 @@ export function DriverForm({
               name="admin_role"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Admin Role (Telegram Bot)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                  <FormLabel style={{ color: 'var(--text-secondary)' }}>Admin Role (Telegram Bot)</FormLabel>
+                  <Select
+                    onValueChange={(val) => field.onChange(val === '__none__' ? undefined : val)}
+                    value={field.value || '__none__'}
+                  >
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} className="w-full h-10">
                         <SelectValue placeholder="Select role" />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                    <SelectContent className="z-[1100] min-w-[200px]">
+                      <SelectItem value="__none__">None</SelectItem>
                       <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
                       <SelectItem value="OPERATIONS_MANAGER">Operations Manager</SelectItem>
                       <SelectItem value="FLEET_MANAGER">Fleet Manager</SelectItem>
@@ -263,6 +279,7 @@ export function DriverForm({
             size="sm"
             onClick={copyCredentials}
             className="gap-1.5"
+            style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-strong)', color: 'var(--text-secondary)' }}
           >
             <Copy className="size-3.5" />
             Copy Credentials
@@ -270,10 +287,12 @@ export function DriverForm({
         </div>
 
         <div className="flex justify-end gap-3 pt-2">
-          <Button type="button" variant="secondary" onClick={onCancel} disabled={loading}>
+          <Button type="button" variant="secondary" onClick={onCancel} disabled={loading}
+            style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }}>
             Cancel
           </Button>
-          <Button type="submit" disabled={loading}>
+          <Button type="submit" disabled={loading}
+            style={{ background: 'var(--brand-primary)', color: '#fff' }}>
             {loading && <Loader2 className="size-4 animate-spin mr-1" />}
             {isEditing ? 'Save Changes' : 'Create Driver'}
           </Button>

@@ -263,20 +263,20 @@ export function ImageUpload({
                       )}
                     </>
                   ) : (
-                    <p className="text-xs text-emerald-500">Uploaded</p>
+                    <p className="text-xs" style={{ color: 'var(--success)' }}>Uploaded</p>
                   )}
                 </div>
               </div>
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-xs"
-                className="shrink-0 text-muted-foreground hover:text-destructive"
+                size="icon"
+                className="shrink-0 h-8 w-8 text-muted-foreground hover:text-destructive"
                 onClick={() => handleRemove(file.id)}
                 disabled={!file.url && !file.error}
                 aria-label="Remove file"
               >
-                <X className="size-3.5" />
+                <X className="size-4" />
               </Button>
             </div>
           ))}

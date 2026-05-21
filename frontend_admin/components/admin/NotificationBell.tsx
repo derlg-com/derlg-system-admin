@@ -1,6 +1,6 @@
 'use client'
 
-import { Bell, Check, Trash2 } from 'lucide-react'
+import { Bell, Check, Trash2, AlertTriangle, ClipboardList, Car, Settings } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,18 +15,18 @@ import { useNotificationStore, type AdminNotification } from '@/store/adminStore
 import { formatDistanceToNow } from 'date-fns'
 import { cn } from '@/lib/utils'
 
-const typeIcon: Record<AdminNotification['type'], string> = {
-  EMERGENCY: '🚨',
-  BOOKING: '📋',
-  DRIVER_STATUS: '🚗',
-  SYSTEM: '⚙️',
+const typeIcon: Record<AdminNotification['type'], React.ComponentType<{ size?: number }>> = {
+  EMERGENCY: AlertTriangle,
+  BOOKING: ClipboardList,
+  DRIVER_STATUS: Car,
+  SYSTEM: Settings,
 }
 
 const typeColor: Record<AdminNotification['type'], string> = {
-  EMERGENCY: 'text-destructive',
-  BOOKING: 'text-primary',
-  DRIVER_STATUS: 'text-emerald-500',
-  SYSTEM: 'text-muted-foreground',
+  EMERGENCY: 'var(--danger)',
+  BOOKING: 'var(--brand-primary)',
+  DRIVER_STATUS: 'var(--success)',
+  SYSTEM: 'var(--text-muted)',
 }
 
 export function NotificationBell() {
@@ -35,7 +35,7 @@ export function NotificationBell() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
+        <Button variant="ghost" size="icon" className="relative min-h-[var(--touch-min)] min-w-[var(--touch-min)]" aria-label="Notifications">
           <Bell size={18} />
           {unreadCount > 0 && (
             <Badge
@@ -55,12 +55,12 @@ export function NotificationBell() {
           <DropdownMenuLabel className="px-0 py-0 text-sm font-semibold">Notifications</DropdownMenuLabel>
           <div className="flex items-center gap-1">
             {unreadCount > 0 && (
-              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={markAllRead}>
+              <Button variant="ghost" size="sm" className="h-9 text-xs gap-1" onClick={markAllRead}>
                 <Check size={12} /> All read
               </Button>
             )}
             {notifications.length > 0 && (
-              <Button variant="ghost" size="icon-xs" className="h-7 w-7" onClick={clearAll} title="Clear all">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={clearAll} title="Clear all">
                 <Trash2 size={12} />
               </Button>
             )}
@@ -81,9 +81,21 @@ export function NotificationBell() {
                 )}
                 style={{ borderColor: 'var(--border-subtle)' }}
               >
-                <span className="text-lg shrink-0">{typeIcon[n.type]}</span>
+                <div className="shrink-0 mt-0.5">
+                  {(() => {
+                    const IconComponent = typeIcon[n.type]
+                    return (
+                      <div style={{ color: typeColor[n.type] }}>
+                        <IconComponent size={16} />
+                      </div>
+                    )
+                  })()}
+                </div>
                 <div className="flex-1 min-w-0">
-                  <p className={cn('text-sm font-medium truncate', n.priority === 'urgent' ? 'text-destructive' : 'text-foreground')}>
+                  <p
+                    className="text-sm font-medium truncate"
+                    style={{ color: n.priority === 'urgent' ? 'var(--danger)' : 'var(--text-primary)' }}
+                  >
                     {n.title}
                   </p>
                   <p className="text-xs text-muted-foreground truncate mt-0.5">{n.message}</p>

@@ -8,7 +8,7 @@ export { ImageUpload } from './ImageUpload'
 export { AccessDenied } from './AccessDenied'
 export { RequireAuth } from './RequireAuth'
 
-import { Search } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 
 // Legacy simple search input (kept for backwards compatibility)
 interface LegacySearchInputProps {
@@ -85,7 +85,9 @@ export function Modal({ open, title, onClose, children, maxWidth = 560, footer }
       <div className="modal" style={{ maxWidth }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="modal-title">{title}</h3>
-          <button className="btn btn-ghost btn-icon btn-sm" onClick={onClose}>✕</button>
+          <button className="btn btn-ghost btn-icon btn-sm" onClick={onClose} aria-label="Close modal">
+            <X size={16} />
+          </button>
         </div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-footer">{footer}</div>}
@@ -131,7 +133,7 @@ export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
         <h1 className="page-title">{title}</h1>
         {subtitle && <p className="page-subtitle">{subtitle}</p>}
       </div>
-      {actions && <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{actions}</div>}
+      {actions && <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>{actions}</div>}
     </div>
   )
 }

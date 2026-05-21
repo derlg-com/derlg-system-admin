@@ -172,7 +172,7 @@ export function AnalyticsDashboard() {
   return (
     <div className="space-y-6">
       {/* Date range + export */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-4 mb-5">
         <div className="flex items-center gap-2">
           <input
             className="form-input"

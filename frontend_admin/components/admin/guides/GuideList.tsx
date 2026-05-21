@@ -139,14 +139,15 @@ export function GuideList() {
 
   const defaultFormValues: Partial<GuideFormData> | undefined = editing
     ? {
-        name: editing.name || editing.user?.name,
+        user_id: editing.id,
         bio: editing.bio,
         profile_picture: editing.profile_picture,
         languages: editing.languages,
         specialties: editing.specialties,
         experience_years: editing.experience_years,
         certifications: editing.certifications,
-        price_per_day: editing.price_per_day,
+        price_per_day_usd: editing.price_per_day || 0,
+        province: '',
       }
     : undefined
 
@@ -175,35 +176,41 @@ export function GuideList() {
       />
 
       {/* Filters */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+      <div className="flex flex-col gap-3 mb-5">
         <SearchInput
           value={search}
           onChange={setSearch}
           placeholder="Search by name or specialty..."
+          style={{ minWidth: 260, maxWidth: 400 }}
         />
         {(langFilter.length > 0 || specFilter.length > 0) && (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted-foreground">Filters:</span>
+            <span className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Filters:</span>
             {langFilter.map((lang) => (
               <span
                 key={lang}
-                className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary cursor-pointer"
                 onClick={() => toggleLangFilter(lang)}
+                className="inline-flex items-center gap-1 text-sm font-medium px-3 py-1 rounded-full cursor-pointer select-none"
+                style={{ background: 'var(--brand-primary)', color: '#fff' }}
               >
-                {lang} ×
+                {lang}
+                <span style={{ opacity: 0.8, marginLeft: 2 }}>×</span>
               </span>
             ))}
             {specFilter.map((spec) => (
               <span
                 key={spec}
-                className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground cursor-pointer"
                 onClick={() => toggleSpecFilter(spec)}
+                className="inline-flex items-center gap-1 text-sm font-medium px-3 py-1 rounded-full cursor-pointer select-none"
+                style={{ background: 'var(--brand-secondary)', color: '#fff' }}
               >
-                {spec} ×
+                {spec}
+                <span style={{ opacity: 0.8, marginLeft: 2 }}>×</span>
               </span>
             ))}
             <button
-              className="text-xs text-muted-foreground hover:text-primary"
+              className="text-sm font-medium px-3 py-1 rounded-full transition-colors"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-strong)' }}
               onClick={() => { setLangFilter([]); setSpecFilter([]) }}
             >
               Clear all
@@ -345,19 +352,24 @@ export function GuideList() {
       </div>
 
       {/* Filter panels */}
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="card">
           <h4 className="text-sm font-medium mb-3">Filter by Language</h4>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-3">
             {ALL_LANGUAGES.map((lang) => (
               <button
                 key={lang}
                 onClick={() => toggleLangFilter(lang)}
-                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                  langFilter.includes(lang)
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-transparent text-muted-foreground border-border-default hover:border-primary'
-                }`}
+                style={langFilter.includes(lang) ? {
+                  background: 'var(--brand-primary)',
+                  color: '#fff',
+                  border: '1px solid var(--brand-primary)',
+                } : {
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-strong)',
+                }}
+                className="text-sm px-5 py-2 rounded-full transition-all hover:border-primary hover:text-primary whitespace-nowrap"
               >
                 {lang}
               </button>
@@ -366,16 +378,21 @@ export function GuideList() {
         </div>
         <div className="card">
           <h4 className="text-sm font-medium mb-3">Filter by Specialty</h4>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-3">
             {ALL_SPECIALTIES.map((spec) => (
               <button
                 key={spec}
                 onClick={() => toggleSpecFilter(spec)}
-                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                  specFilter.includes(spec)
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-transparent text-muted-foreground border-border-default hover:border-primary'
-                }`}
+                style={specFilter.includes(spec) ? {
+                  background: 'var(--brand-secondary)',
+                  color: '#fff',
+                  border: '1px solid var(--brand-secondary)',
+                } : {
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-strong)',
+                }}
+                className="text-sm px-5 py-2 rounded-full transition-all hover:border-primary hover:text-primary whitespace-nowrap"
               >
                 {spec}
               </button>

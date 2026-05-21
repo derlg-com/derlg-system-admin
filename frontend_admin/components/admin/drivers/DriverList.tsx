@@ -41,11 +41,11 @@ function TelegramBadge({ driver }: { driver: Driver }) {
   const isRegistered = !!driver.telegram_id
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-        isRegistered
-          ? 'bg-emerald-400/10 text-emerald-400'
-          : 'bg-slate-400/10 text-slate-400'
-      }`}
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+      style={{
+        background: isRegistered ? 'var(--success-muted)' : 'var(--bg-elevated)',
+        color: isRegistered ? 'var(--success)' : 'var(--text-muted)',
+      }}
     >
       {isRegistered ? (
         <>
@@ -85,7 +85,7 @@ export function DriverList() {
 
   // Create / Update mutation
   const mutation = useMutation({
-    mutationFn: (d: DriverFormData) =>
+    mutationFn: (d: any) =>
       editing
         ? driversApi.update(editing.id, d)
         : driversApi.create(d),
@@ -132,7 +132,14 @@ export function DriverList() {
   }
 
   const handleFormSubmit = (formData: DriverFormData) => {
-    mutation.mutate(formData)
+    const payload = {
+      driverName: formData.driver_name,
+      driverId: formData.driver_id,
+      phone: formData.phone,
+      telegramId: formData.telegram_id || undefined,
+      vehicleId: formData.vehicle_id || undefined,
+    }
+    mutation.mutate(payload)
   }
 
   const handleDelete = () => {
@@ -190,7 +197,7 @@ export function DriverList() {
       />
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-4 mb-5">
         <SearchInput
           value={search}
           onChange={setSearch}
@@ -201,6 +208,7 @@ export function DriverList() {
           value={statusFilter}
           onChange={setStatusFilter}
           options={[
+            { label: 'All Statuses', value: '' },
             { label: 'Available', value: 'AVAILABLE' },
             { label: 'Busy', value: 'BUSY' },
             { label: 'Offline', value: 'OFFLINE' },
@@ -211,6 +219,7 @@ export function DriverList() {
           value={telegramFilter}
           onChange={setTelegramFilter}
           options={[
+            { label: 'All', value: '' },
             { label: 'Registered', value: 'registered' },
             { label: 'Not Registered', value: 'not_registered' },
           ]}

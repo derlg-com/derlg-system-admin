@@ -221,7 +221,7 @@ export function SupportTicketList() {
         }
       />
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-4 mb-5">
         <FilterDropdown
           value={statusFilter}
           onChange={setStatusFilter}

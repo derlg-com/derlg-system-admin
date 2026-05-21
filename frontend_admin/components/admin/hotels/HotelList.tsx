@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { Plus, Edit2, Eye, BedDouble, Trash2 } from 'lucide-react'
+import { Plus, Edit2, Eye, BedDouble, Trash2, Star } from 'lucide-react'
 import { hotelsApi } from '@/lib/api'
 import { DataTable } from '@/components/shared/DataTable'
 import { SearchInput, PageHeader, ConfirmDialog } from '@/components/shared'
@@ -21,8 +21,11 @@ interface Hotel {
   name: string
   description?: string
   location?: { lat: number; lng: number }
+  latitude?: number
+  longitude?: number
   images?: string[]
   rating?: number
+  star_rating?: number
   amenities?: string[]
   check_in_time?: string
   check_out_time?: string
@@ -118,9 +121,10 @@ export function HotelList() {
     ? {
         name: editing.name,
         description: editing.description,
-        location: editing.location,
+        latitude: editing.location?.lat ?? editing.latitude ?? 11.5564,
+        longitude: editing.location?.lng ?? editing.longitude ?? 104.9282,
         images: editing.images,
-        rating: editing.rating,
+        star_rating: editing.rating ?? editing.star_rating,
         amenities: editing.amenities,
         check_in_time: editing.check_in_time,
         check_out_time: editing.check_out_time,
@@ -189,8 +193,14 @@ export function HotelList() {
               label: 'Rating',
               render: (r: Hotel) =>
                 r.rating ? (
-                  <span className="text-amber-400">
-                    {'★'.repeat(Math.round(r.rating))}
+                  <span className="inline-flex items-center gap-0.5">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star
+                        key={i}
+                        size={14}
+                        className={i < Math.round(r.rating || 0) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground'}
+                      />
+                    ))}
                     <span className="text-muted-foreground text-xs ml-1">
                       {r.rating}
                     </span>

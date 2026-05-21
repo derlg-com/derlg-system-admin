@@ -68,7 +68,9 @@ export function FilterDropdown({
 
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation()
+    e.preventDefault()
     onChange(isMulti ? [] : '')
+    setOpen(false)
   }
 
   return (
@@ -78,11 +80,16 @@ export function FilterDropdown({
           variant="outline"
           size="sm"
           className={cn(
-            'h-9 gap-1.5 font-normal',
-            selectedCount > 0 && 'border-primary/50 bg-primary/5',
+            'h-10 gap-1.5 font-normal',
+            selectedCount > 0 && 'border-primary/50',
             className
           )}
-          style={style}
+          style={{
+            background: selectedCount > 0 ? 'var(--brand-primary-muted)' : 'var(--bg-elevated)',
+            border: `1px solid ${selectedCount > 0 ? 'var(--brand-primary)' : 'var(--border-strong)'}`,
+            color: selectedCount > 0 ? 'var(--brand-primary)' : 'var(--text-primary)',
+            ...style,
+          }}
         >
           <span className="truncate max-w-[120px]">
             {selectedCount > 0
@@ -94,20 +101,14 @@ export function FilterDropdown({
           {selectedCount > 0 ? (
             <span
               role="button"
-              tabIndex={0}
-              className="ml-0.5 inline-flex size-4 items-center justify-center rounded-sm hover:bg-muted"
+              aria-label="Clear filter"
+              className="ml-0.5 flex items-center justify-center h-5 w-5 rounded hover:bg-white/20"
               onClick={handleClear}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  onChange(isMulti ? [] : '')
-                }
-              }}
             >
-              <X className="size-3" />
+              <X className="size-3.5" />
             </span>
           ) : (
-            <ChevronDown className="size-3.5 text-muted-foreground" />
+            <ChevronDown className="size-3.5 opacity-60" />
           )}
         </Button>
       </DropdownMenuTrigger>

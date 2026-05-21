@@ -100,7 +100,7 @@ export function AdminUserList() {
   const defaultFormValues: Partial<AdminUserFormData> | undefined = editing
     ? {
         email: editing.email,
-        name: editing.name,
+        full_name: editing.name,
         admin_role: editing.admin_role as any,
         permissions: editing.permissions || {},
       }

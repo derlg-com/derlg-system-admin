@@ -146,18 +146,18 @@ export function BookingList() {
       key: 'status',
       label: 'Status',
       render: (r: Booking) => {
-        const colors: Record<string, string> = {
-          RESERVED: 'text-amber-400 bg-amber-400/10',
-          CONFIRMED: 'text-emerald-400 bg-emerald-400/10',
-          COMPLETED: 'text-blue-400 bg-blue-400/10',
-          CANCELLED: 'text-red-400 bg-red-400/10',
-          REFUNDED: 'text-slate-400 bg-slate-400/10',
+        const colors: Record<string, { text: string; bg: string }> = {
+          RESERVED: { text: 'var(--warning)', bg: 'var(--warning-muted)' },
+          CONFIRMED: { text: 'var(--success)', bg: 'var(--success-muted)' },
+          COMPLETED: { text: 'var(--info)', bg: 'var(--info-muted)' },
+          CANCELLED: { text: 'var(--danger)', bg: 'var(--danger-muted)' },
+          REFUNDED: { text: 'var(--text-muted)', bg: 'var(--bg-elevated)' },
         }
+        const cfg = colors[r.status] || { text: 'var(--text-muted)', bg: 'var(--bg-elevated)' }
         return (
           <span
-            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-              colors[r.status] || 'text-slate-400 bg-slate-400/10'
-            }`}
+            className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+            style={{ color: cfg.text, background: cfg.bg }}
           >
             {r.status}
           </span>
@@ -197,7 +197,7 @@ export function BookingList() {
       <PageHeader title="Bookings" subtitle={`${data.length} total bookings`} />
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-4 mb-5">
         <SearchInput
           value={search}
           onChange={setSearch}

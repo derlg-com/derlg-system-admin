@@ -11,30 +11,30 @@ interface DriverStatusBadgeProps {
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dotColor: string }> = {
   AVAILABLE: {
     label: 'Available',
-    color: 'text-emerald-400',
-    bg: 'bg-emerald-400/10',
-    dotColor: 'bg-emerald-400',
+    color: 'var(--success)',
+    bg: 'var(--success-muted)',
+    dotColor: 'var(--success)',
   },
   BUSY: {
     label: 'Busy',
-    color: 'text-amber-400',
-    bg: 'bg-amber-400/10',
-    dotColor: 'bg-amber-400',
+    color: 'var(--warning)',
+    bg: 'var(--warning-muted)',
+    dotColor: 'var(--warning)',
   },
   OFFLINE: {
     label: 'Offline',
-    color: 'text-slate-400',
-    bg: 'bg-slate-400/10',
-    dotColor: 'bg-slate-400',
+    color: 'var(--text-muted)',
+    bg: 'var(--bg-elevated)',
+    dotColor: 'var(--text-muted)',
   },
 }
 
 export function DriverStatusBadge({ status, pulsing = false, className }: DriverStatusBadgeProps) {
   const config = STATUS_CONFIG[status] || {
     label: status,
-    color: 'text-slate-400',
-    bg: 'bg-slate-400/10',
-    dotColor: 'bg-slate-400',
+    color: 'var(--text-muted)',
+    bg: 'var(--bg-elevated)',
+    dotColor: 'var(--text-muted)',
   }
 
   const shouldPulse = pulsing && status === 'AVAILABLE'
@@ -43,17 +43,16 @@ export function DriverStatusBadge({ status, pulsing = false, className }: Driver
     <span
       className={cn(
         'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium',
-        config.bg,
-        config.color,
         className
       )}
+      style={{
+        background: config.bg,
+        color: config.color,
+      }}
     >
       <span
-        className={cn(
-          'inline-block size-1.5 rounded-full',
-          config.dotColor,
-          shouldPulse && 'animate-pulse-dot'
-        )}
+        className={cn('inline-block size-1.5 rounded-full', shouldPulse && 'animate-pulse-dot')}
+        style={{ background: config.dotColor }}
       />
       {config.label}
     </span>

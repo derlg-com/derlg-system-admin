@@ -27,7 +27,7 @@ import { Button } from '@/components/ui/button'
 const ALERT_COLORS: Record<string, string> = {
   SOS: 'var(--danger)',
   MEDICAL: 'var(--warning)',
-  THEFT: '#8b5cf6',
+  THEFT: 'var(--brand-accent)',
   LOST: 'var(--info)',
 }
 
@@ -98,7 +98,7 @@ export function EmergencyAlertList() {
 
         // Browser notification
         if (browserNotifEnabled && typeof window !== 'undefined') {
-          new Notification('🚨 Emergency Alert', {
+          new Notification('Emergency Alert', {
             body: `${alert.alert_type}: ${alert.message || 'No message'}`,
             icon: '/favicon.ico',
             tag: alert.id,
@@ -108,7 +108,7 @@ export function EmergencyAlertList() {
         // In-app notification
         addNotification({
           type: 'EMERGENCY',
-          title: '🚨 Emergency Alert',
+          title: 'Emergency Alert',
           message: `${alert.alert_type} from ${alert.user?.name || 'Unknown'}`,
           priority: 'urgent',
           data: alert,
@@ -167,7 +167,7 @@ export function EmergencyAlertList() {
         title="Emergency Alerts"
         subtitle={
           hasSentAlerts
-            ? '🚨 Active emergencies require attention'
+            ? 'Active emergencies require attention'
             : `${data.length} total alerts`
         }
         actions={
@@ -237,10 +237,9 @@ export function EmergencyAlertList() {
                   className="inline-flex items-center gap-1.5 font-semibold"
                   style={{ color: ALERT_COLORS[r.alert_type] || 'var(--text-primary)' }}
                 >
-                  <AlertTriangle
-                    className="size-4"
-                    style={{ color: ALERT_COLORS[r.alert_type] }}
-                  />
+                  <div style={{ color: ALERT_COLORS[r.alert_type] || 'var(--text-primary)' }}>
+                    <AlertTriangle className="size-4" />
+                  </div>
                   {r.alert_type}
                 </span>
               ),

@@ -23,21 +23,31 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     if (!isMobile) setMobileOpen(false)
   }, [isMobile])
 
-  // Close mobile sidebar on route change (handled by browser back/forward)
+  // Close mobile sidebar on route change
   useEffect(() => {
     const handleRouteChange = () => setMobileOpen(false)
     window.addEventListener('popstate', handleRouteChange)
     return () => window.removeEventListener('popstate', handleRouteChange)
   }, [])
 
+  // Lock body scroll when mobile sidebar is open
   useEffect(() => {
-    // Wait for Zustand to rehydrate from localStorage before redirecting
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [mobileOpen])
+
+  useEffect(() => {
     if (_hasHydrated && !isAuthenticated) {
       router.replace('/login')
     }
   }, [_hasHydrated, isAuthenticated, router])
 
-  // Role check: redirect users without adminRole to login
   useEffect(() => {
     if (_hasHydrated && isAuthenticated && user && !user.adminRole) {
       router.replace('/login')
@@ -50,11 +60,10 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     router.replace('/login')
   }
 
-  // Show loading spinner while Zustand is rehydrating
   if (!_hasHydrated) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <span className="spinner" style={{ width: 32, height: 32 }} />
+      <div className="flex items-center justify-center min-h-screen" style={{ background: 'var(--bg-base)' }}>
+        <div className="spinner" style={{ width: 32, height: 32 }} />
       </div>
     )
   }
@@ -66,7 +75,8 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       {/* Mobile sidebar overlay */}
       {isMobile && mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-40 animate-fade-in"
+          className="fixed inset-0 z-40"
+          style={{ background: 'rgba(0,0,0,0.65)' }}
           onClick={() => setMobileOpen(false)}
           aria-hidden="true"
         />
@@ -75,7 +85,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed md:relative top-0 left-0 h-screen z-50 flex flex-col shrink-0 transition-transform duration-300 ease-in-out',
+          'fixed md:relative top-0 left-0 h-screen z-50 flex flex-col shrink-0',
           isMobile && !mobileOpen && '-translate-x-full',
           isMobile && mobileOpen && 'translate-x-0'
         )}
@@ -83,15 +93,23 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           width: isMobile ? 'var(--sidebar-width)' : undefined,
           background: 'var(--bg-surface)',
           borderRight: '1px solid var(--border-default)',
+          transition: 'transform var(--transition-normal)',
         }}
+        aria-label="Main navigation"
       >
         <AdminSidebar onNavigate={() => isMobile && setMobileOpen(false)} />
       </aside>
 
       <div className="flex flex-col min-w-0 flex-1">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 md:px-6 shrink-0 border-b"
-          style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-default)' }}
+        <header
+          className="sticky top-0 z-30 flex items-center justify-between shrink-0 border-b"
+          style={{
+            height: 64,
+            padding: '0 20px',
+            background: 'var(--bg-surface)',
+            borderColor: 'var(--border-default)',
+          }}
         >
           <div className="flex items-center gap-3">
             {/* Mobile hamburger */}
@@ -99,71 +117,104 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               className="btn btn-ghost btn-icon md:hidden"
               onClick={() => setMobileOpen(true)}
               aria-label="Open menu"
+              aria-expanded={mobileOpen}
+              aria-controls="sidebar"
             >
-              <Menu size={18} />
+              <Menu size={20} />
             </button>
 
             {/* Page title on mobile */}
-            <span className="md:hidden text-sm font-semibold text-foreground truncate">
+            <span className="md:hidden text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
               DerLg Admin
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {/* WS connection indicator */}
             <div
-              title={`WebSocket: ${connectionStatus}`}
-              className="hidden sm:flex items-center gap-1.5 text-xs"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+              style={{
+                fontSize: 12,
+                fontWeight: 500,
+                background:
+                  connectionStatus === 'connected'
+                    ? 'var(--success-muted)'
+                    : connectionStatus === 'connecting'
+                      ? 'var(--warning-muted)'
+                      : 'var(--danger-muted)',
+              }}
+              aria-live="polite"
             >
               {connectionStatus === 'connected' ? (
                 <>
-                  <Wifi size={14} className="text-emerald-500" />
-                  <span className="text-emerald-500">Connected</span>
+                  <span className="relative flex size-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: 'var(--success)' }} />
+                    <span className="relative inline-flex rounded-full size-2" style={{ background: 'var(--success)' }} />
+                  </span>
+                  <span style={{ color: 'var(--success)' }}>Live</span>
                 </>
               ) : connectionStatus === 'connecting' ? (
                 <>
-                  <Wifi size={14} className="text-amber-500 animate-pulse" />
-                  <span className="text-amber-500">Reconnecting…</span>
+                  <Wifi size={13} style={{ color: 'var(--warning)' }} />
+                  <span style={{ color: 'var(--warning)' }}>Connecting</span>
                 </>
               ) : (
                 <>
-                  <WifiOff size={14} className="text-destructive" />
-                  <span className="text-destructive">Disconnected</span>
+                  <WifiOff size={13} style={{ color: 'var(--danger)' }} />
+                  <span style={{ color: 'var(--danger)' }}>Offline</span>
                 </>
               )}
             </div>
+
+            <div className="h-6 w-px hidden sm:block" style={{ background: 'var(--border-default)' }} />
 
             <NotificationBell />
 
             {/* User info */}
             {user && (
-              <div className="hidden sm:flex items-center gap-2">
-                <div className="flex size-8 items-center justify-center rounded-full text-sm font-semibold text-white"
-                  style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))' }}
+              <div className="hidden sm:flex items-center gap-3 pl-1">
+                <div
+                  className="flex size-9 items-center justify-center rounded-full text-sm font-semibold text-white shrink-0"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))',
+                  }}
+                  aria-hidden="true"
                 >
                   {user.name?.[0]?.toUpperCase()}
                 </div>
                 <div className="hidden lg:block">
-                  <p className="text-sm font-medium leading-none">{user.name}</p>
-                  <p className="text-xs text-muted-foreground">{user.adminRole}</p>
+                  <p className="text-sm font-medium leading-tight" style={{ color: 'var(--text-primary)' }}>
+                    {user.name}
+                  </p>
+                  <p className="text-xs leading-tight mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    {user.adminRole}
+                  </p>
                 </div>
               </div>
             )}
 
+            <div className="h-6 w-px hidden sm:block" style={{ background: 'var(--border-default)' }} />
+
             <button
-              id="logout-btn"
               className="btn btn-ghost btn-icon"
               onClick={handleLogout}
+              aria-label="Log out"
               title="Log out"
             >
-              <LogOut size={16} />
+              <LogOut size={18} />
             </button>
           </div>
         </header>
 
         {/* Main content */}
-        <main className="flex-1 p-4 md:p-6 overflow-y-auto bg-background"
-          style={{ background: 'var(--bg-base)' }}
+        <main
+          className="flex-1 overflow-y-auto"
+          style={{
+            background: 'var(--bg-base)',
+            padding: 'var(--space-5) var(--space-4)',
+          }}
+          id="main-content"
+          tabIndex={-1}
         >
           {children}
         </main>
