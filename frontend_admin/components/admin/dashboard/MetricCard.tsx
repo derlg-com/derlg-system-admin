@@ -15,41 +15,57 @@ export function MetricCard({ title, value, icon: Icon, trend, color = 'var(--bra
   if (loading) {
     return (
       <div className="metric-card">
-        <div className="skeleton" style={{ height: 14, width: 80, marginBottom: 16 }} />
-        <div className="skeleton" style={{ height: 32, width: 120, marginBottom: 12 }} />
-        <div className="skeleton" style={{ height: 12, width: 60 }} />
+        <div className="skeleton" style={{ height: 14, width: 100, marginBottom: 20, borderRadius: 6 }} />
+        <div className="skeleton" style={{ height: 36, width: 140, marginBottom: 16, borderRadius: 8 }} />
+        <div className="skeleton" style={{ height: 14, width: 80, borderRadius: 6 }} />
       </div>
     )
   }
 
   return (
-    <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+    <div className="metric-card">
+      <div className="flex items-center justify-between">
+        <span
+          className="text-xs font-semibold uppercase tracking-wider"
+          style={{ color: 'var(--text-muted)', letterSpacing: '0.08em' }}
+        >
           {title}
         </span>
-        <div style={{
-          width: 36, height: 36, borderRadius: 10,
-          background: `${color}22`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <Icon size={17} color={color} />
+        <div
+          className="flex items-center justify-center rounded-xl"
+          style={{
+            width: 44,
+            height: 44,
+            background: `${color}18`,
+          }}
+        >
+          <Icon size={20} color={color} />
         </div>
       </div>
 
-      <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>
+      <div
+        className="text-[32px] font-bold tracking-tight"
+        style={{ color: 'var(--text-primary)', lineHeight: 1.1, marginTop: 16 }}
+      >
         {typeof value === 'number' ? value.toLocaleString() : value}
       </div>
 
-      {trend && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+      {trend ? (
+        <div className="flex items-center gap-1.5 mt-3">
           {trend.value >= 0
-            ? <TrendingUp size={12} color="var(--success)" />
-            : <TrendingDown size={12} color="var(--danger)" />}
-          <span style={{ color: trend.value >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 500 }}>
+            ? <TrendingUp size={14} color="var(--success)" />
+            : <TrendingDown size={14} color="var(--danger)" />}
+          <span
+            className="text-sm font-semibold tabular-nums"
+            style={{ color: trend.value >= 0 ? 'var(--success)' : 'var(--danger)' }}
+          >
             {trend.value >= 0 ? '+' : ''}{trend.value}%
           </span>
-          <span style={{ color: 'var(--text-muted)' }}>{trend.label || 'vs yesterday'}</span>
+          <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{trend.label || 'vs yesterday'}</span>
+        </div>
+      ) : (
+        <div className="mt-3 text-sm" style={{ color: 'var(--text-muted)' }}>
+          Updated just now
         </div>
       )}
     </div>

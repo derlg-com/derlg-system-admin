@@ -11,6 +11,13 @@ const api: AxiosInstance = axios.create({
 let isRefreshing = false
 let pendingRequests: Array<() => void> = []
 
+// Callback for notifying the auth store when tokens are refreshed
+let onTokenRefresh: ((token: string, user?: any) => void) | null = null
+
+export function setTokenRefreshCallback(cb: (token: string, user?: any) => void) {
+  onTokenRefresh = cb
+}
+
 // Unwrap the backend's { success, data, message } response envelope
 api.interceptors.response.use((response) => {
   if (
@@ -47,8 +54,10 @@ api.interceptors.response.use(
       try {
         const res = await axios.post(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true })
         const tokenData = res.data?.data ?? res.data
-        const { accessToken } = tokenData
+        const { accessToken, user } = tokenData
         localStorage.setItem('admin_access_token', accessToken)
+        // Notify auth store about the refreshed token + user
+        onTokenRefresh?.(accessToken, user)
         pendingRequests.forEach((cb) => cb())
         pendingRequests = []
         isRefreshing = false
@@ -58,8 +67,13 @@ api.interceptors.response.use(
         isRefreshing = false
         pendingRequests = []
         localStorage.removeItem('admin_access_token')
+        onTokenRefresh?.('', null)
         if (typeof window !== 'undefined') window.location.href = '/login'
       }
+    }
+    // On 403: permission denied — could show toast here if needed
+    if (error.response?.status === 403) {
+      // Let calling code handle this, but we could log it
     }
     return Promise.reject(error)
   },
@@ -95,6 +109,7 @@ export const vehiclesApi = {
   get: (id: string) => api.get(`/admin/vehicles/${id}`),
   create: (data: any) => api.post('/admin/vehicles', data),
   update: (id: string, data: any) => api.patch(`/admin/vehicles/${id}`, data),
+  delete: (id: string) => api.delete(`/admin/vehicles/${id}`),
 }
 
 // Admin Maintenance
@@ -112,6 +127,14 @@ export const bookingsApi = {
   cancel: (id: string) => api.post(`/bookings/${id}/cancel`),
 }
 
+// AI Sessions
+export const aiSessionsApi = {
+  getBookings: (params?: Record<string, any>) => api.get('/admin/ai-sessions/bookings', { params }),
+  getSession: (sessionId: string) => api.get(`/admin/ai-sessions/${sessionId}`),
+  getSuccessRate: (params?: Record<string, any>) => api.get('/admin/ai-sessions/metrics/success-rate', { params }),
+  getPerformance: (params?: Record<string, any>) => api.get('/admin/ai-sessions/metrics/performance', { params }),
+}
+
 // Admin Assignments
 export const assignmentsApi = {
   create: (data: any) => api.post('/admin/assignments', data),
@@ -124,10 +147,13 @@ export const hotelsApi = {
   get: (id: string) => api.get(`/admin/hotels/${id}`),
   create: (data: any) => api.post('/admin/hotels', data),
   update: (id: string, data: any) => api.patch(`/admin/hotels/${id}`, data),
+  delete: (id: string) => api.delete(`/admin/hotels/${id}`),
   getRooms: (id: string) => api.get(`/admin/hotels/${id}/rooms`),
   createRoom: (id: string, data: any) => api.post(`/admin/hotels/${id}/rooms`, data),
   updateRoom: (hotelId: string, roomId: string, data: any) =>
     api.patch(`/admin/hotels/${hotelId}/rooms/${roomId}`, data),
+  deleteRoom: (hotelId: string, roomId: string) =>
+    api.delete(`/admin/hotels/${hotelId}/rooms/${roomId}`),
 }
 
 // Admin Guides
@@ -136,6 +162,7 @@ export const guidesApi = {
   get: (id: string) => api.get(`/admin/guides/${id}`),
   create: (data: any) => api.post('/admin/guides', data),
   update: (id: string, data: any) => api.patch(`/admin/guides/${id}`, data),
+  delete: (id: string) => api.delete(`/admin/guides/${id}`),
 }
 
 // Admin Emergency
@@ -168,6 +195,9 @@ export const analyticsApi = {
   getRevenue: (params?: Record<string, any>) => api.get('/admin/analytics/revenue', { params }),
   getBookings: (params?: Record<string, any>) => api.get('/admin/analytics/bookings', { params }),
   getDrivers: (params?: Record<string, any>) => api.get('/admin/analytics/drivers', { params }),
+  getPopularDestinations: (params?: Record<string, any>) => api.get('/admin/analytics/destinations', { params }),
+  getHotelOccupancy: (params?: Record<string, any>) => api.get('/admin/analytics/hotels', { params }),
+  getGuideUtilization: (params?: Record<string, any>) => api.get('/admin/analytics/guides', { params }),
   export: (params?: Record<string, any>) => api.get('/admin/analytics/export', { params, responseType: 'blob' }),
 }
 
@@ -183,4 +213,26 @@ export const auditLogsApi = {
   list: (params?: Record<string, any>) => api.get('/admin/audit-logs', { params }),
   export: (params?: Record<string, any>) =>
     api.get('/admin/audit-logs/export', { params, responseType: 'blob' }),
+}
+
+// Telegram Admin
+export const telegramApi = {
+  broadcast: (data: { message: string; image_url?: string; target_filter: Record<string, any> }) =>
+    api.post('/admin/telegram/broadcast', data),
+  getBroadcastHistory: (params?: Record<string, any>) =>
+    api.get('/admin/telegram/broadcasts', { params }),
+  getAnalytics: (params?: Record<string, any>) =>
+    api.get('/admin/telegram/analytics', { params }),
+  getSupportTickets: (params?: Record<string, any>) =>
+    api.get('/admin/telegram/support-tickets', { params }),
+  updateTicket: (id: string, data: any) =>
+    api.patch(`/admin/telegram/support-tickets/${id}`, data),
+  assignTicket: (id: string, assignedTo: string) =>
+    api.patch(`/admin/telegram/support-tickets/${id}/assign`, { assigned_to: assignedTo }),
+}
+
+// Upload / Presigned URL
+export const uploadApi = {
+  getPresignedUrl: (fileName: string, contentType: string) =>
+    api.post('/admin/upload/presigned', { fileName, contentType }),
 }

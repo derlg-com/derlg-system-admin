@@ -15,19 +15,19 @@ import {
   BarChart3,
   ShieldCheck,
   ScrollText,
-  Wrench,
   Bot,
+  MessageSquare,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
 import { useAuthStore, useUIStore } from '@/store/adminStore'
+import { cn } from '@/lib/utils'
 
 interface NavItem {
   label: string
   href: string
-  icon: React.ComponentType<{ size?: number; color?: string }>
+  icon: React.ComponentType<{ size?: number; className?: string }>
   roles?: string[]
-  badge?: number
 }
 
 const navItems: NavItem[] = [
@@ -41,12 +41,17 @@ const navItems: NavItem[] = [
   { label: 'Emergency', href: '/admin/emergency', icon: AlertTriangle, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER'] },
   { label: 'Discounts', href: '/admin/discounts', icon: Tag, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER'] },
   { label: 'Analytics', href: '/admin/analytics', icon: BarChart3, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER'] },
+  { label: 'Telegram', href: '/admin/telegram/broadcast', icon: MessageSquare, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER', 'FLEET_MANAGER'] },
   { label: 'Admin Users', href: '/admin/users', icon: ShieldCheck, roles: ['SUPER_ADMIN'] },
   { label: 'Audit Logs', href: '/admin/audit-logs', icon: ScrollText, roles: ['SUPER_ADMIN'] },
   { label: 'AI Monitoring', href: '/admin/ai-monitoring', icon: Bot, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER'] },
 ]
 
-export function AdminSidebar() {
+interface AdminSidebarProps {
+  onNavigate?: () => void
+}
+
+export function AdminSidebar({ onNavigate }: AdminSidebarProps) {
   const pathname = usePathname()
   const { user } = useAuthStore()
   const { sidebarCollapsed, toggleSidebar } = useUIStore()
@@ -56,58 +61,52 @@ export function AdminSidebar() {
   )
 
   return (
-    <aside
+    <div
+      className="flex flex-col h-full"
       style={{
         width: sidebarCollapsed ? 'var(--sidebar-collapsed)' : 'var(--sidebar-width)',
-        minHeight: '100vh',
-        background: 'var(--bg-surface)',
-        borderRight: '1px solid var(--border-default)',
-        display: 'flex',
-        flexDirection: 'column',
         transition: 'width var(--transition-normal)',
-        flexShrink: 0,
-        position: 'sticky',
-        top: 0,
-        zIndex: 50,
         overflow: 'hidden',
       }}
     >
       {/* Logo */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: sidebarCollapsed ? 'center' : 'space-between',
-        padding: sidebarCollapsed ? '20px 0' : '20px 20px',
-        borderBottom: '1px solid var(--border-default)',
-        height: 64,
-        flexShrink: 0,
-      }}>
-        {!sidebarCollapsed && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 8,
-              background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 14, fontWeight: 700, color: 'white',
-            }}>D</div>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>DerLg</div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>ADMIN PANEL</div>
-            </div>
+      <div
+        className="flex items-center justify-between shrink-0 border-b"
+        style={{
+          height: 80,
+          padding: sidebarCollapsed ? '0 12px' : '0 20px 0 36px',
+          borderColor: 'var(--border-default)',
+        }}
+      >
+        <div className={cn('flex items-center gap-3', sidebarCollapsed && 'hidden')}>
+          <div
+            className="flex size-9 items-center justify-center rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:shadow-lg cursor-default"
+            style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))', boxShadow: 'var(--shadow-glow-blue)' }}
+            aria-hidden="true"
+          >
+            D
+          </div>
+          <div className="leading-tight">
+            <div className="text-[15px] font-bold" style={{ color: 'var(--text-primary)' }}>DerLg</div>
+            <div className="text-[10px] tracking-widest uppercase font-medium" style={{ color: 'var(--text-muted)' }}>Admin Panel</div>
+          </div>
+        </div>
+
+        {sidebarCollapsed && (
+          <div
+            className="flex size-9 items-center justify-center rounded-xl text-sm font-bold text-white mx-auto"
+            style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))' }}
+            aria-hidden="true"
+          >
+            D
           </div>
         )}
-        {sidebarCollapsed && (
-          <div style={{
-            width: 32, height: 32, borderRadius: 8,
-            background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 14, fontWeight: 700, color: 'white',
-          }}>D</div>
-        )}
+
         {!sidebarCollapsed && (
           <button
             className="btn btn-ghost btn-icon btn-sm"
             onClick={toggleSidebar}
+            aria-label="Collapse sidebar"
             title="Collapse sidebar"
           >
             <ChevronLeft size={16} />
@@ -116,46 +115,52 @@ export function AdminSidebar() {
       </div>
 
       {/* Nav items */}
-      <nav style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>
+      <nav className="flex-1 overflow-y-auto" style={{ padding: '12px 10px' }} aria-label="Sidebar navigation">
         {filteredNav.map((item) => {
           const Icon = item.icon
-          const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+          const isActive =
+            pathname === item.href ||
+            pathname.startsWith(item.href + '/') ||
+            (item.href === '/admin/telegram/broadcast' && pathname.startsWith('/admin/telegram'))
+
           return (
             <Link
               key={item.href}
               href={item.href}
               title={sidebarCollapsed ? item.label : undefined}
+              onClick={onNavigate}
+              className={cn(
+                'flex items-center gap-3 rounded-xl mb-1 transition-all w-full',
+                sidebarCollapsed ? 'justify-center py-3 px-0' : 'px-5 py-2.5',
+                isActive
+                  ? 'font-semibold'
+                  : 'font-normal hover:text-foreground'
+              )}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: sidebarCollapsed ? '10px 0' : '10px 12px',
-                borderRadius: 8,
-                marginBottom: 2,
-                textDecoration: 'none',
                 color: isActive ? 'var(--brand-primary)' : 'var(--text-secondary)',
                 background: isActive ? 'var(--brand-primary-muted)' : 'transparent',
-                fontWeight: isActive ? 600 : 400,
-                fontSize: 13,
-                transition: 'all var(--transition-fast)',
-                justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-                position: 'relative',
+                minHeight: 44,
               }}
-              onMouseEnter={(e) => {
-                if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'
-              }}
+              onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
+              onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              aria-current={isActive ? 'page' : undefined}
             >
-              <Icon size={17} />
-              {!sidebarCollapsed && <span>{item.label}</span>}
+              <Icon
+                size={19}
+                className="shrink-0"
+              />
+              {!sidebarCollapsed && (
+                <span className="text-sm truncate">{item.label}</span>
+              )}
               {isActive && !sidebarCollapsed && (
-                <div style={{
-                  width: 3, height: '60%', borderRadius: 2,
-                  background: 'var(--brand-primary)',
-                  position: 'absolute', right: 8,
-                }} />
+                <div
+                  className="ml-auto shrink-0 rounded-full"
+                  style={{
+                    width: 6,
+                    height: 6,
+                    background: 'var(--brand-primary)',
+                  }}
+                />
               )}
             </Link>
           )
@@ -164,8 +169,16 @@ export function AdminSidebar() {
 
       {/* Expand button when collapsed */}
       {sidebarCollapsed && (
-        <div style={{ padding: '12px 0', borderTop: '1px solid var(--border-default)', display: 'flex', justifyContent: 'center' }}>
-          <button className="btn btn-ghost btn-icon btn-sm" onClick={toggleSidebar} title="Expand sidebar">
+        <div
+          className="flex justify-center py-3 border-t"
+          style={{ borderColor: 'var(--border-default)' }}
+        >
+          <button
+            className="btn btn-ghost btn-icon btn-sm"
+            onClick={toggleSidebar}
+            aria-label="Expand sidebar"
+            title="Expand sidebar"
+          >
             <ChevronRight size={16} />
           </button>
         </div>
@@ -173,27 +186,30 @@ export function AdminSidebar() {
 
       {/* User section */}
       {!sidebarCollapsed && user && (
-        <div style={{
-          padding: '12px 16px',
-          borderTop: '1px solid var(--border-default)',
-          display: 'flex', alignItems: 'center', gap: 10,
-        }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: '50%',
-            background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 13, fontWeight: 600, color: 'white', flexShrink: 0,
-          }}>
+        <div
+          className="flex items-center gap-3 shrink-0 border-t"
+          style={{
+            padding: '14px 16px',
+            borderColor: 'var(--border-default)',
+          }}
+        >
+          <div
+            className="flex size-9 items-center justify-center rounded-full text-sm font-semibold text-white shrink-0"
+            style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))' }}
+            aria-hidden="true"
+          >
             {user.name?.[0]?.toUpperCase()}
           </div>
-          <div style={{ overflow: 'hidden' }}>
-            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div className="min-w-0 overflow-hidden">
+            <div className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
               {user.name}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{user.adminRole || user.role}</div>
+            <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
+              {user.adminRole || user.role}
+            </div>
           </div>
         </div>
       )}
-    </aside>
+    </div>
   )
 }

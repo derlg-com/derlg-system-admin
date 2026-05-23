@@ -1,4 +1,20 @@
-import type { Metadata } from 'next'
+'use client'
+
 import { AuditLogViewer } from '@/components/admin/audit/AuditLogViewer'
-export const metadata: Metadata = { title: 'Audit Logs — DerLg Admin' }
-export default function AuditLogsPage() { return <AuditLogViewer /> }
+import { AccessDenied } from '@/components/shared'
+import { usePermission } from '@/hooks/usePermission'
+
+export default function AuditLogsPage() {
+  const { isSuperAdmin } = usePermission()
+
+  if (!isSuperAdmin) {
+    return (
+      <AccessDenied
+        title="Super Admin Only"
+        message="Audit log access is restricted to SUPER_ADMIN role."
+      />
+    )
+  }
+
+  return <AuditLogViewer />
+}

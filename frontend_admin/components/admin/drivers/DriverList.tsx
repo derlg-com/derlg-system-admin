@@ -2,79 +2,187 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Edit2, Eye } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import {
+  Plus,
+  Edit2,
+  Eye,
+  Trash2,
+  Search,
+  MessageCircle,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+} from 'lucide-react'
 import { driversApi } from '@/lib/api'
 import { DataTable } from '@/components/shared/DataTable'
-import { SearchInput, FilterDropdown, StatusBadge, PageHeader, Modal, FormField } from '@/components/shared'
+import { SearchInput, FilterDropdown, PageHeader, Modal, ConfirmDialog } from '@/components/shared'
+import { DriverStatusBadge } from './DriverStatusBadge'
+import { DriverForm, type DriverFormData } from './DriverForm'
 import { formatDistanceToNow } from 'date-fns'
+import { toast } from 'sonner'
 
-function DriverStatusBadge({ status }: { status: string }) {
+interface Driver {
+  id: string
+  driver_name: string
+  driver_id: string
+  telegram_id?: string | null
+  phone: string
+  vehicle_id?: string | null
+  vehicle_name?: string
+  status: 'AVAILABLE' | 'BUSY' | 'OFFLINE'
+  last_status_update?: string
+  last_telegram_activity?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+function TelegramBadge({ driver }: { driver: Driver }) {
+  const isRegistered = !!driver.telegram_id
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <div style={{
-        width: 7, height: 7, borderRadius: '50%',
-        background: status === 'AVAILABLE' ? 'var(--success)' : status === 'BUSY' ? 'var(--warning)' : 'var(--text-muted)',
-        animation: status === 'AVAILABLE' ? 'pulse-dot 2s ease-in-out infinite' : 'none',
-      }} />
-      <StatusBadge status={status} />
-    </div>
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+      style={{
+        background: isRegistered ? 'var(--success-muted)' : 'var(--bg-elevated)',
+        color: isRegistered ? 'var(--success)' : 'var(--text-muted)',
+      }}
+    >
+      {isRegistered ? (
+        <>
+          <CheckCircle2 className="size-3" /> Registered
+        </>
+      ) : (
+        <>
+          <XCircle className="size-3" /> Not Registered
+        </>
+      )}
+    </span>
   )
 }
 
-interface DriverFormData {
-  driver_name: string
-  driver_id: string
-  telegram_id: string
-  phone: string
-  vehicle_id: string
-}
-
-const EMPTY_FORM: DriverFormData = { driver_name: '', driver_id: '', telegram_id: '', phone: '', vehicle_id: '' }
-
 export function DriverList() {
+  const router = useRouter()
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [telegramFilter, setTelegramFilter] = useState('')
   const [showForm, setShowForm] = useState(false)
-  const [editing, setEditing] = useState<any>(null)
-  const [form, setForm] = useState<DriverFormData>(EMPTY_FORM)
+  const [editing, setEditing] = useState<Driver | null>(null)
+  const [deleting, setDeleting] = useState<Driver | null>(null)
 
-  const { data = [], isLoading } = useQuery({
-    queryKey: ['admin-drivers', statusFilter],
-    queryFn: () => driversApi.list(statusFilter ? { status: statusFilter } : {}).then((r) => r.data),
+  // Fetch drivers
+  const { data = [], isLoading } = useQuery<Driver[]>({
+    queryKey: ['admin-drivers', statusFilter, telegramFilter],
+    queryFn: () => {
+      const params: Record<string, any> = {}
+      if (statusFilter) params.status = statusFilter
+      if (telegramFilter === 'registered') params.has_telegram = true
+      if (telegramFilter === 'not_registered') params.has_telegram = false
+      return driversApi.list(params).then((r) => r.data)
+    },
+    staleTime: 30000,
   })
 
+  // Create / Update mutation
   const mutation = useMutation({
     mutationFn: (d: any) =>
-      editing ? driversApi.update(editing.id, d) : driversApi.create(d),
+      editing
+        ? driversApi.update(editing.id, d)
+        : driversApi.create(d),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-drivers'] })
       setShowForm(false)
       setEditing(null)
-      setForm(EMPTY_FORM)
+      toast.success(editing ? 'Driver updated successfully' : 'Driver created successfully')
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to save driver')
     },
   })
 
-  const filtered = data.filter((d: any) =>
-    !search || d.driver_name?.toLowerCase().includes(search.toLowerCase()) || d.driver_id?.toLowerCase().includes(search.toLowerCase()),
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => driversApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-drivers'] })
+      setDeleting(null)
+      toast.success('Driver deleted successfully')
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to delete driver')
+    },
+  })
+
+  // Client-side search filter
+  const filtered = data.filter((d) =>
+    !search ||
+    d.driver_name?.toLowerCase().includes(search.toLowerCase()) ||
+    d.driver_id?.toLowerCase().includes(search.toLowerCase())
   )
 
-  const openEdit = (driver: any) => {
+
+  const openEdit = (driver: Driver) => {
     setEditing(driver)
-    setForm({
-      driver_name: driver.driver_name,
-      driver_id: driver.driver_id,
-      telegram_id: driver.telegram_id || '',
-      phone: driver.phone || '',
-      vehicle_id: driver.vehicle_id || '',
-    })
     setShowForm(true)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    mutation.mutate(form)
+  const openCreate = () => {
+    setEditing(null)
+    setShowForm(true)
   }
+
+  const handleFormSubmit = (formData: DriverFormData) => {
+    const payload = {
+      driverName: formData.driver_name,
+      driverId: formData.driver_id,
+      phone: formData.phone,
+      telegramId: formData.telegram_id || undefined,
+      vehicleId: formData.vehicle_id || undefined,
+    }
+    mutation.mutate(payload)
+  }
+
+  const handleDelete = () => {
+    if (deleting) {
+      deleteMutation.mutate(deleting.id)
+    }
+  }
+
+  const columns = [
+    { key: 'driver_name', label: 'Name', sortable: true },
+    { key: 'driver_id', label: 'Driver ID', sortable: true },
+    {
+      key: 'vehicle_name',
+      label: 'Vehicle',
+      render: (r: Driver) => r.vehicle_name || '—',
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (r: Driver) => <DriverStatusBadge status={r.status} pulsing />,
+    },
+    {
+      key: 'telegram_status',
+      label: 'Telegram',
+      render: (r: Driver) => <TelegramBadge driver={r} />,
+    },
+    {
+      key: 'last_telegram_activity',
+      label: 'Last Seen',
+      render: (r: Driver) =>
+        r.last_telegram_activity
+          ? formatDistanceToNow(new Date(r.last_telegram_activity), { addSuffix: true })
+          : '—',
+    },
+    {
+      key: 'last_status_update',
+      label: 'Last Update',
+      render: (r: Driver) =>
+        r.last_status_update
+          ? formatDistanceToNow(new Date(r.last_status_update), { addSuffix: true })
+          : '—',
+    },
+  ]
 
   return (
     <div>
@@ -82,24 +190,40 @@ export function DriverList() {
         title="Drivers"
         subtitle={`${data.length} total drivers`}
         actions={
-          <button className="btn btn-primary" onClick={() => { setEditing(null); setForm(EMPTY_FORM); setShowForm(true) }}>
+          <button className="btn btn-primary" onClick={openCreate}>
             <Plus size={15} /> Add Driver
           </button>
         }
       />
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search by name or ID…" />
+      <div className="flex flex-wrap items-center gap-4 mb-5">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by name or ID…"
+          style={{ minWidth: 240 }}
+        />
         <FilterDropdown
           value={statusFilter}
           onChange={setStatusFilter}
           options={[
+            { label: 'All Statuses', value: '' },
             { label: 'Available', value: 'AVAILABLE' },
             { label: 'Busy', value: 'BUSY' },
             { label: 'Offline', value: 'OFFLINE' },
           ]}
           placeholder="All Statuses"
+        />
+        <FilterDropdown
+          value={telegramFilter}
+          onChange={setTelegramFilter}
+          options={[
+            { label: 'All', value: '' },
+            { label: 'Registered', value: 'registered' },
+            { label: 'Not Registered', value: 'not_registered' },
+          ]}
+          placeholder="Telegram Status"
         />
       </div>
 
@@ -109,29 +233,39 @@ export function DriverList() {
           loading={isLoading}
           rowKey="id"
           emptyMessage="No drivers found"
-          columns={[
-            { key: 'driver_name', label: 'Name', sortable: true },
-            { key: 'driver_id', label: 'Driver ID' },
-            { key: 'phone', label: 'Phone' },
-            { key: 'telegram_id', label: 'Telegram ID' },
-            {
-              key: 'status',
-              label: 'Status',
-              render: (r) => <DriverStatusBadge status={r.status} />,
-            },
-            {
-              key: 'last_status_update',
-              label: 'Last Update',
-              render: (r) =>
-                r.last_status_update
-                  ? formatDistanceToNow(new Date(r.last_status_update), { addSuffix: true })
-                  : '—',
-            },
-          ]}
+          columns={columns}
+          onRowClick={(row) => router.push(`/admin/drivers/${row.id}`)}
           actions={(row) => (
             <>
-              <button className="btn btn-ghost btn-icon btn-sm" onClick={() => openEdit(row)} title="Edit">
+              <button
+                className="btn btn-ghost btn-icon btn-sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  router.push(`/admin/drivers/${row.id}`)
+                }}
+                title="View Details"
+              >
+                <Eye size={13} />
+              </button>
+              <button
+                className="btn btn-ghost btn-icon btn-sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  openEdit(row)
+                }}
+                title="Edit"
+              >
                 <Edit2 size={13} />
+              </button>
+              <button
+                className="btn btn-ghost btn-icon btn-sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setDeleting(row)
+                }}
+                title="Delete"
+              >
+                <Trash2 size={13} />
               </button>
             </>
           )}
@@ -142,39 +276,46 @@ export function DriverList() {
       <Modal
         open={showForm}
         title={editing ? 'Edit Driver' : 'Add Driver'}
-        onClose={() => { setShowForm(false); setEditing(null); setForm(EMPTY_FORM) }}
-        footer={
-          <>
-            <button className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
-            <button className="btn btn-primary" form="driver-form" type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : editing ? 'Save Changes' : 'Create Driver'}
-            </button>
-          </>
-        }
+        onClose={() => {
+          setShowForm(false)
+          setEditing(null)
+        }}
+        maxWidth={640}
+        footer={null}
       >
-        <form id="driver-form" onSubmit={handleSubmit}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <FormField label="Full Name" required>
-              <input className="form-input" value={form.driver_name} onChange={(e) => setForm((f) => ({ ...f, driver_name: e.target.value }))} required />
-            </FormField>
-            <FormField label="Driver ID" required>
-              <input className="form-input" value={form.driver_id} onChange={(e) => setForm((f) => ({ ...f, driver_id: e.target.value }))} required />
-            </FormField>
-            <FormField label="Telegram ID">
-              <input className="form-input" value={form.telegram_id} onChange={(e) => setForm((f) => ({ ...f, telegram_id: e.target.value }))} placeholder="@username or ID" />
-            </FormField>
-            <FormField label="Phone">
-              <input className="form-input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-            </FormField>
-          </div>
-          <FormField label="Vehicle ID" hint="Link to a transportation vehicle">
-            <input className="form-input" value={form.vehicle_id} onChange={(e) => setForm((f) => ({ ...f, vehicle_id: e.target.value }))} />
-          </FormField>
-          {mutation.isError && (
-            <div className="alert alert-danger" style={{ marginTop: 12, fontSize: 12 }}>Failed to save driver. Please try again.</div>
-          )}
-        </form>
+        <DriverForm
+          isEditing={!!editing}
+          defaultValues={
+            editing
+              ? {
+                  driver_name: editing.driver_name,
+                  driver_id: editing.driver_id,
+                  phone: editing.phone,
+                  telegram_id: editing.telegram_id || '',
+                  vehicle_id: editing.vehicle_id || '',
+                }
+              : undefined
+          }
+          onSubmit={handleFormSubmit}
+          onCancel={() => {
+            setShowForm(false)
+            setEditing(null)
+          }}
+          loading={mutation.isPending}
+        />
       </Modal>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={!!deleting}
+        title="Delete Driver"
+        message={`Are you sure you want to delete ${deleting?.driver_name}? This action cannot be undone.`}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleting(null)}
+        loading={deleteMutation.isPending}
+        variant="danger"
+        confirmLabel="Delete"
+      />
     </div>
   )
 }

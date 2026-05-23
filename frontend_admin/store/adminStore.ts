@@ -2,13 +2,14 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 // ---- Auth Store ----
-interface AdminUser {
+export interface AdminUser {
   id: string
   name: string
   email: string
   role: string
   adminRole?: string
   avatarUrl?: string
+  permissions?: Record<string, boolean>
 }
 
 interface AuthState {
@@ -20,11 +21,14 @@ interface AuthState {
   clearAuth: () => void
   updateUser: (updates: Partial<AdminUser>) => void
   setHasHydrated: (v: boolean) => void
+  setPermissions: (permissions: Record<string, boolean>) => void
+  hasPermission: (permission: string) => boolean
+  hasAnyRole: (roles: string[]) => boolean
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       accessToken: null,
       isAuthenticated: false,
@@ -46,6 +50,23 @@ export const useAuthStore = create<AuthState>()(
         set((state) => ({
           user: state.user ? { ...state.user, ...updates } : null,
         })),
+      setPermissions: (permissions) =>
+        set((state) => ({
+          user: state.user ? { ...state.user, permissions } : null,
+        })),
+      hasPermission: (permission) => {
+        const { user } = get()
+        if (!user) return false
+        // SUPER_ADMIN has all permissions
+        if (user.adminRole === 'SUPER_ADMIN') return true
+        return user.permissions?.[permission] ?? false
+      },
+      hasAnyRole: (roles) => {
+        const { user } = get()
+        if (!user) return false
+        if (!user.adminRole) return false
+        return roles.includes(user.adminRole)
+      },
     }),
     {
       name: 'derlg-admin-auth',

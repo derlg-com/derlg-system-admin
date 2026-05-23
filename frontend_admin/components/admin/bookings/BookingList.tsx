@@ -2,27 +2,61 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Edit2, UserCheck, AlertCircle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import {
+  Plus,
+  Edit2,
+  Eye,
+  Trash2,
+  UserCheck,
+  AlertCircle,
+  Bot,
+  Loader2,
+  XCircle,
+} from 'lucide-react'
 import { bookingsApi, assignmentsApi, driversApi } from '@/lib/api'
 import { DataTable } from '@/components/shared/DataTable'
-import { SearchInput, FilterDropdown, StatusBadge, PageHeader, Modal, FormField, ConfirmDialog } from '@/components/shared'
-import { format } from 'date-fns'
+import { SearchInput, FilterDropdown, PageHeader, Modal, FormField, ConfirmDialog } from '@/components/shared'
+import { format, parseISO } from 'date-fns'
+import { toast } from 'sonner'
+
+interface Booking {
+  id: string
+  booking_ref: string
+  user?: { name: string; email: string }
+  user_id: string
+  booking_type: string
+  status: string
+  travel_date: string
+  total_usd: number
+  ai_assisted: boolean
+  num_adults: number
+  num_children: number
+}
 
 export function BookingList() {
+  const router = useRouter()
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
-  const [selected, setSelected] = useState<any>(null)
-  const [showDetail, setShowDetail] = useState(false)
+  const [aiFilter, setAiFilter] = useState('')
+  const [selected, setSelected] = useState<Booking | null>(null)
   const [showCancel, setShowCancel] = useState(false)
   const [showAssign, setShowAssign] = useState(false)
   const [assignDriverId, setAssignDriverId] = useState('')
 
-  const { data = [], isLoading } = useQuery({
-    queryKey: ['admin-bookings', statusFilter, typeFilter],
-    queryFn: () => bookingsApi.list({ status: statusFilter || undefined, booking_type: typeFilter || undefined }).then((r) => r.data),
-    refetchInterval: 30_000,
+  const { data = [], isLoading } = useQuery<Booking[]>({
+    queryKey: ['admin-bookings', statusFilter, typeFilter, aiFilter],
+    queryFn: () => {
+      const params: Record<string, any> = {}
+      if (statusFilter) params.status = statusFilter
+      if (typeFilter) params.booking_type = typeFilter
+      if (aiFilter === 'ai') params.ai_assisted = true
+      if (aiFilter === 'manual') params.ai_assisted = false
+      return bookingsApi.list(params).then((r) => r.data)
+    },
+    staleTime: 30000,
   })
 
   const { data: availableDrivers = [] } = useQuery({
@@ -33,36 +67,175 @@ export function BookingList() {
 
   const cancelMutation = useMutation({
     mutationFn: (id: string) => bookingsApi.cancel(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-bookings'] }); setShowCancel(false); setSelected(null) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-bookings'] })
+      setShowCancel(false)
+      setSelected(null)
+      toast.success('Booking cancelled successfully')
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to cancel booking')
+    },
   })
 
   const assignMutation = useMutation({
-    mutationFn: (d: { driver_id: string; booking_id: string; vehicle_id: string }) => assignmentsApi.create(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-bookings'] }); setShowAssign(false); setAssignDriverId('') },
+    mutationFn: (d: { driver_id: string; booking_id: string; vehicle_id: string }) =>
+      assignmentsApi.create(d),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-bookings'] })
+      setShowAssign(false)
+      setAssignDriverId('')
+      toast.success('Driver assigned successfully')
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to assign driver')
+    },
   })
 
-  const filtered = data.filter((b: any) => {
+  const filtered = data.filter((b) => {
     if (!search) return true
-    return b.booking_ref?.toLowerCase().includes(search.toLowerCase()) ||
+    return (
+      b.booking_ref?.toLowerCase().includes(search.toLowerCase()) ||
       b.user?.email?.toLowerCase().includes(search.toLowerCase())
+    )
   })
 
-  const openDetail = (b: any) => { setSelected(b); setShowDetail(true) }
+
+  const columns = [
+    {
+      key: 'booking_ref',
+      label: 'Ref',
+      sortable: true,
+      render: (r: Booking) => (
+        <span
+          style={{
+            fontFamily: 'monospace',
+            fontSize: 12,
+            color: 'var(--brand-primary)',
+            background: 'var(--brand-primary-muted)',
+            padding: '2px 8px',
+            borderRadius: 4,
+          }}
+        >
+          {r.booking_ref}
+        </span>
+      ),
+    },
+    {
+      key: 'user',
+      label: 'Customer',
+      render: (r: Booking) => (
+        <div>
+          <p className="text-sm font-medium">{r.user?.name || r.user_id}</p>
+          {r.user?.email && (
+            <p className="text-xs text-muted-foreground">{r.user.email}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'booking_type',
+      label: 'Type',
+      render: (r: Booking) => (
+        <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+          {r.booking_type.replace(/_/g, ' ')}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (r: Booking) => {
+        const colors: Record<string, { text: string; bg: string }> = {
+          RESERVED: { text: 'var(--warning)', bg: 'var(--warning-muted)' },
+          CONFIRMED: { text: 'var(--success)', bg: 'var(--success-muted)' },
+          COMPLETED: { text: 'var(--info)', bg: 'var(--info-muted)' },
+          CANCELLED: { text: 'var(--danger)', bg: 'var(--danger-muted)' },
+          REFUNDED: { text: 'var(--text-muted)', bg: 'var(--bg-elevated)' },
+        }
+        const cfg = colors[r.status] || { text: 'var(--text-muted)', bg: 'var(--bg-elevated)' }
+        return (
+          <span
+            className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+            style={{ color: cfg.text, background: cfg.bg }}
+          >
+            {r.status}
+          </span>
+        )
+      },
+    },
+    {
+      key: 'travel_date',
+      label: 'Travel Date',
+      sortable: true,
+      render: (r: Booking) =>
+        r.travel_date ? format(parseISO(r.travel_date), 'MMM d, yyyy') : '—',
+    },
+    {
+      key: 'total_usd',
+      label: 'Total',
+      sortable: true,
+      render: (r: Booking) => `$${Number(r.total_usd).toFixed(2)}`,
+    },
+    {
+      key: 'ai_assisted',
+      label: 'AI',
+      render: (r: Booking) =>
+        r.ai_assisted ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-purple-400/10 text-purple-400 px-2 py-0.5 text-xs">
+            <Bot className="size-3" />
+            AI
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">Manual</span>
+        ),
+    },
+  ]
 
   return (
     <div>
       <PageHeader title="Bookings" subtitle={`${data.length} total bookings`} />
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search booking ref or email…" style={{ flex: 1 }} />
-        <FilterDropdown value={statusFilter} onChange={setStatusFilter} placeholder="All Statuses" options={[
-          { label: 'Reserved', value: 'RESERVED' }, { label: 'Confirmed', value: 'CONFIRMED' },
-          { label: 'Completed', value: 'COMPLETED' }, { label: 'Cancelled', value: 'CANCELLED' }, { label: 'Refunded', value: 'REFUNDED' },
-        ]} />
-        <FilterDropdown value={typeFilter} onChange={setTypeFilter} placeholder="All Types" options={[
-          { label: 'Package', value: 'PACKAGE' }, { label: 'Hotel Only', value: 'HOTEL_ONLY' },
-          { label: 'Transport Only', value: 'TRANSPORT_ONLY' }, { label: 'Guide Only', value: 'GUIDE_ONLY' },
-        ]} />
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-4 mb-5">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search booking ref or email…"
+          style={{ minWidth: 240 }}
+        />
+        <FilterDropdown
+          value={statusFilter}
+          onChange={setStatusFilter}
+          placeholder="All Statuses"
+          options={[
+            { label: 'Reserved', value: 'RESERVED' },
+            { label: 'Confirmed', value: 'CONFIRMED' },
+            { label: 'Completed', value: 'COMPLETED' },
+            { label: 'Cancelled', value: 'CANCELLED' },
+            { label: 'Refunded', value: 'REFUNDED' },
+          ]}
+        />
+        <FilterDropdown
+          value={typeFilter}
+          onChange={setTypeFilter}
+          placeholder="All Types"
+          options={[
+            { label: 'Package', value: 'PACKAGE' },
+            { label: 'Hotel Only', value: 'HOTEL_ONLY' },
+            { label: 'Transport Only', value: 'TRANSPORT_ONLY' },
+            { label: 'Guide Only', value: 'GUIDE_ONLY' },
+          ]}
+        />
+        <FilterDropdown
+          value={aiFilter}
+          onChange={setAiFilter}
+          placeholder="AI / Manual"
+          options={[
+            { label: 'AI Assisted', value: 'ai' },
+            { label: 'Manual', value: 'manual' },
+          ]}
+        />
       </div>
 
       <div className="card" style={{ padding: 0 }}>
@@ -71,30 +244,45 @@ export function BookingList() {
           loading={isLoading}
           rowKey="id"
           emptyMessage="No bookings found"
-          onRowClick={openDetail}
-          columns={[
-            {
-              key: 'booking_ref', label: 'Ref',
-              render: (r) => <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--brand-primary)', background: 'var(--brand-primary-muted)', padding: '2px 8px', borderRadius: 4 }}>{r.booking_ref}</span>
-            },
-            { key: 'user', label: 'Customer', render: (r) => r.user?.name || r.user_id },
-            { key: 'booking_type', label: 'Type', render: (r) => <StatusBadge status={r.booking_type} /> },
-            { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },
-            { key: 'travel_date', label: 'Travel Date', render: (r) => format(new Date(r.travel_date), 'MMM d, yyyy') },
-            { key: 'total_usd', label: 'Total', render: (r) => `$${Number(r.total_usd).toFixed(2)}` },
-          ]}
+          onRowClick={(row) => router.push(`/admin/bookings/${row.id}`)}
+          columns={columns}
           actions={(row) => (
             <>
-              {row.booking_type === 'TRANSPORT_ONLY' && row.status === 'CONFIRMED' && (
-                <button className="btn btn-ghost btn-icon btn-sm" title="Assign Driver"
-                  onClick={(e) => { e.stopPropagation(); setSelected(row); setShowAssign(true) }}>
-                  <UserCheck size={13} color="var(--success)" />
-                </button>
-              )}
+              <button
+                className="btn btn-ghost btn-icon btn-sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  router.push(`/admin/bookings/${row.id}`)
+                }}
+                title="View Details"
+              >
+                <Eye size={13} />
+              </button>
+              {row.booking_type === 'TRANSPORT_ONLY' &&
+                ['RESERVED', 'CONFIRMED'].includes(row.status) && (
+                  <button
+                    className="btn btn-ghost btn-icon btn-sm"
+                    title="Assign Driver"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelected(row)
+                      setShowAssign(true)
+                    }}
+                  >
+                    <UserCheck size={13} color="var(--success)" />
+                  </button>
+                )}
               {['RESERVED', 'CONFIRMED'].includes(row.status) && (
-                <button className="btn btn-ghost btn-icon btn-sm" title="Cancel"
-                  onClick={(e) => { e.stopPropagation(); setSelected(row); setShowCancel(true) }}>
-                  <AlertCircle size={13} color="var(--danger)" />
+                <button
+                  className="btn btn-ghost btn-icon btn-sm"
+                  title="Cancel"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setSelected(row)
+                    setShowCancel(true)
+                  }}
+                >
+                  <XCircle size={13} color="var(--danger)" />
                 </button>
               )}
             </>
@@ -102,49 +290,53 @@ export function BookingList() {
         />
       </div>
 
-      {/* Detail Modal */}
-      {selected && (
-        <Modal open={showDetail} title={`Booking ${selected.booking_ref}`} onClose={() => { setShowDetail(false); setSelected(null) }} maxWidth={640}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {[
-              ['Type', selected.booking_type], ['Status', selected.status],
-              ['Customer', selected.user?.name], ['Email', selected.user?.email],
-              ['Travel Date', format(new Date(selected.travel_date), 'MMM d, yyyy')],
-              ['End Date', selected.end_date ? format(new Date(selected.end_date), 'MMM d, yyyy') : '—'],
-              ['Adults', selected.num_adults], ['Children', selected.num_children],
-              ['Subtotal', `$${Number(selected.subtotal_usd).toFixed(2)}`],
-              ['Discount', `$${Number(selected.discount_amount_usd || 0).toFixed(2)}`],
-              ['Total', `$${Number(selected.total_usd).toFixed(2)}`],
-            ].map(([label, value]) => (
-              <div key={label as string}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{label}</div>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{String(value ?? '—')}</div>
-              </div>
-            ))}
-          </div>
-          {selected.special_requests && (
-            <div style={{ marginTop: 16, padding: 12, background: 'var(--bg-elevated)', borderRadius: 8 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Special Requests</div>
-              <div style={{ fontSize: 13 }}>{selected.special_requests}</div>
-            </div>
-          )}
-        </Modal>
-      )}
-
       {/* Assign Driver Modal */}
-      <Modal open={showAssign} title="Assign Driver" onClose={() => setShowAssign(false)}
-        footer={<>
-          <button className="btn btn-secondary" onClick={() => setShowAssign(false)}>Cancel</button>
-          <button className="btn btn-primary" disabled={!assignDriverId || assignMutation.isPending}
-            onClick={() => assignMutation.mutate({ driver_id: assignDriverId, booking_id: selected?.id, vehicle_id: selected?.vehicle_id })}>
-            {assignMutation.isPending ? 'Assigning…' : 'Assign Driver'}
-          </button>
-        </>}>
+      <Modal
+        open={showAssign}
+        title="Assign Driver"
+        onClose={() => {
+          setShowAssign(false)
+          setAssignDriverId('')
+        }}
+        footer={
+          <>
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                setShowAssign(false)
+                setAssignDriverId('')
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={!assignDriverId || assignMutation.isPending}
+              onClick={() =>
+                assignMutation.mutate({
+                  driver_id: assignDriverId,
+                  booking_id: selected?.id || '',
+                  vehicle_id: '',
+                })
+              }
+            >
+              {assignMutation.isPending ? 'Assigning…' : 'Assign Driver'}
+            </button>
+          </>
+        }
+      >
         <FormField label="Select Available Driver">
-          <select className="form-select" value={assignDriverId} onChange={(e) => setAssignDriverId(e.target.value)}>
+          <select
+            className="form-select"
+            value={assignDriverId}
+            onChange={(e) => setAssignDriverId(e.target.value)}
+          >
             <option value="">— Select driver —</option>
             {availableDrivers.map((d: any) => (
-              <option key={d.id} value={d.id}>{d.driver_name} ({d.phone})</option>
+              <option key={d.id} value={d.id}>
+                {d.driver_name} ({d.phone})
+                {d.telegram_id ? ' · Telegram' : ''}
+              </option>
             ))}
           </select>
         </FormField>
@@ -161,8 +353,11 @@ export function BookingList() {
         title="Cancel Booking"
         message={`Are you sure you want to cancel booking ${selected?.booking_ref}? This will process a refund if payment was made.`}
         confirmLabel="Cancel Booking"
-        onConfirm={() => cancelMutation.mutate(selected?.id)}
-        onCancel={() => { setShowCancel(false); setSelected(null) }}
+        onConfirm={() => selected && cancelMutation.mutate(selected.id)}
+        onCancel={() => {
+          setShowCancel(false)
+          setSelected(null)
+        }}
         loading={cancelMutation.isPending}
       />
     </div>
