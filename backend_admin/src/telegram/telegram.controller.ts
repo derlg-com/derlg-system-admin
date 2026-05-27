@@ -18,6 +18,7 @@ import { CallbackHandler } from './handlers/callback.handler';
 import { LocationHandler } from './handlers/location.handler';
 import { MessageHandler } from './handlers/message.handler';
 import { BotSenderService } from './services/bot-sender.service';
+import { MetricsService } from '../monitoring/metrics.service';
 import { TelegramAuthGuard } from './guards/telegram-auth.guard';
 import { WebhookSecretGuard } from './guards/webhook-secret.guard';
 import { DriverStatusWebhookDto } from './dto/driver-status-webhook.dto';
@@ -41,9 +42,10 @@ export class TelegramController {
     private readonly locationHandler: LocationHandler,
     private readonly messageHandler: MessageHandler,
     private readonly botSender: BotSenderService,
+    private readonly metrics: MetricsService,
   ) {
     this.webhookSecret =
-      process.env.TELEGRAM_WEBHOOK_SECRET || '';
+      process.env.TELEGRAM_BOT_SECRET || '';
   }
 
   // ─── Webhook ───
@@ -51,52 +53,71 @@ export class TelegramController {
   @Post('webhook')
   @UseGuards(WebhookSecretGuard)
   async handleWebhook(@Body() dto: WebhookUpdateDto) {
-    const result = await this.telegramService.handleWebhook(dto as any);
+    const startTime = Date.now();
+    const updateType = this.getUpdateType(dto as any);
 
-    if (!result) {
-      return {
-        success: true,
-        data: null,
-        message: 'Duplicate or invalid update',
-        error: null,
-      };
-    }
+    try {
+      const result = await this.telegramService.handleWebhook(dto as any);
 
-    // Route to appropriate handler
-    const response = await this.messageHandler.handleUpdate(dto as any);
+      if (!result) {
+        this.metrics.recordWebhookRequest('duplicate', updateType);
+        return {
+          success: true,
+          data: null,
+          message: 'Duplicate or invalid update',
+          error: null,
+        };
+      }
 
-    // Send reply back to Telegram
-    if (response) {
-      const telegramId = this.extractTelegramId(dto as any);
-      if (telegramId) {
-        try {
-          await this.botSender.sendMessage(telegramId, response.text, {
-            parse_mode: response.parse_mode,
-            reply_markup: response.keyboard,
-          });
-        } catch (err) {
-          this.logger.error(`Failed to send reply: ${err.message}`);
+      // Track command usage
+      const command = this.extractCommand(dto as any);
+      if (command) {
+        this.metrics.recordCommandUsage(command);
+      }
+
+      // Route to appropriate handler
+      const response = await this.messageHandler.handleUpdate(dto as any);
+
+      // Send reply back to Telegram
+      if (response) {
+        const telegramId = this.extractTelegramId(dto as any);
+        if (telegramId) {
+          try {
+            await this.botSender.sendMessage(telegramId, response.text, {
+              parse_mode: response.parse_mode,
+              reply_markup: response.keyboard,
+            });
+          } catch (err) {
+            this.logger.error(`Failed to send reply: ${err.message}`);
+          }
         }
       }
-    }
 
-    // Answer callback query if present
-    if ((dto as any).callback_query?.id) {
-      try {
-        await this.botSender.answerCallbackQuery(
-          (dto as any).callback_query.id,
-        );
-      } catch (err) {
-        this.logger.error(`Failed to answer callback: ${err.message}`);
+      // Answer callback query if present
+      if ((dto as any).callback_query?.id) {
+        try {
+          await this.botSender.answerCallbackQuery(
+            (dto as any).callback_query.id,
+          );
+        } catch (err) {
+          this.logger.error(`Failed to answer callback: ${err.message}`);
+        }
       }
-    }
 
-    return {
-      success: true,
-      data: response,
-      message: 'ok',
-      error: null,
-    };
+      this.metrics.recordWebhookRequest('success', updateType);
+      this.metrics.recordResponseTime((Date.now() - startTime) / 1000);
+
+      return {
+        success: true,
+        data: response,
+        message: 'ok',
+        error: null,
+      };
+    } catch (err) {
+      this.metrics.recordWebhookRequest('error', updateType);
+      this.metrics.recordResponseTime((Date.now() - startTime) / 1000);
+      throw err;
+    }
   }
 
   private extractTelegramId(update: any): string | null {
@@ -105,6 +126,26 @@ export class TelegramController {
     }
     if (update.callback_query?.from?.id) {
       return String(update.callback_query.from.id);
+    }
+    return null;
+  }
+
+  private getUpdateType(update: any): string {
+    if (update.message?.text?.startsWith('/')) return 'command';
+    if (update.callback_query) return 'callback_query';
+    if (update.message?.location) return 'location';
+    if (update.message) return 'message';
+    return 'unknown';
+  }
+
+  private extractCommand(update: any): string | null {
+    const text = update.message?.text;
+    if (typeof text === 'string' && text.startsWith('/')) {
+      return text.split(' ')[0].split('@')[0];
+    }
+    const callbackData = update.callback_query?.data;
+    if (typeof callbackData === 'string') {
+      return callbackData.split(':')[0];
     }
     return null;
   }

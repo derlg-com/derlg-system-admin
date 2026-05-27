@@ -3,6 +3,7 @@ import { TelegramService } from './telegram.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { BotSenderService } from './services/bot-sender.service';
+import { MetricsService } from '../monitoring/metrics.service';
 import { getQueueToken } from '@nestjs/bullmq';
 import { DriverStatus, AssignmentStatus } from '@prisma/client';
 
@@ -78,6 +79,14 @@ describe('TelegramService', () => {
     sendPhoto: jest.fn().mockResolvedValue({ message_id: 2 }),
   };
 
+  const mockMetrics = {
+    recordWebhookRequest: jest.fn(),
+    recordCommandUsage: jest.fn(),
+    recordAssignmentAction: jest.fn(),
+    recordBroadcastMessage: jest.fn(),
+    recordResponseTime: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -87,6 +96,7 @@ describe('TelegramService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: RedisService, useValue: mockRedis },
         { provide: BotSenderService, useValue: mockBotSender },
+        { provide: MetricsService, useValue: mockMetrics },
         { provide: getQueueToken('broadcast'), useValue: mockBroadcastQueue },
         { provide: getQueueToken('assignment-timeout'), useValue: mockAssignmentTimeoutQueue },
       ],

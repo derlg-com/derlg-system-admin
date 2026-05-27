@@ -160,4 +160,13 @@ export class BotSenderService {
   async deleteWebhook(): Promise<boolean> {
     return this.post<boolean>('deleteWebhook', {});
   }
+
+  async healthCheck(): Promise<{ status: string; bot_name?: string; error?: string }> {
+    try {
+      const result = await this.post<{ username: string; first_name: string }>('getMe', {});
+      return { status: 'ok', bot_name: result.username };
+    } catch (error) {
+      return { status: 'error', error: error.message };
+    }
+  }
 }

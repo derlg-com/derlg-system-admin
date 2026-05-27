@@ -13,6 +13,7 @@ import { DriverStatus, AssignmentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { BotSenderService } from './services/bot-sender.service';
+import { MetricsService } from '../monitoring/metrics.service';
 
 @Injectable()
 export class TelegramService {
@@ -22,6 +23,7 @@ export class TelegramService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly botSender: BotSenderService,
+    private readonly metrics: MetricsService,
     @InjectQueue('broadcast') private readonly broadcastQueue: Queue,
     @InjectQueue('assignment-timeout')
     private readonly assignmentTimeoutQueue: Queue,
@@ -393,6 +395,8 @@ export class TelegramService {
       }),
     );
 
+    this.metrics.recordAssignmentAction('accept', 'success');
+
     return assignment;
   }
 
@@ -449,6 +453,8 @@ export class TelegramService {
       }),
     );
 
+    this.metrics.recordAssignmentAction('reject', 'success');
+
     return assignment;
   }
 
@@ -503,6 +509,8 @@ export class TelegramService {
       }),
     );
 
+    this.metrics.recordAssignmentAction('start', 'success');
+
     return updatedAssignment;
   }
 
@@ -556,6 +564,8 @@ export class TelegramService {
         timestamp: new Date().toISOString(),
       }),
     );
+
+    this.metrics.recordAssignmentAction('complete', 'success');
 
     return updatedAssignment;
   }
@@ -955,6 +965,8 @@ export class TelegramService {
       targets,
       imageUrl: dto.imageUrl,
     });
+
+    this.metrics.recordBroadcastMessage('sent');
 
     return {
       broadcastId: broadcast.id,

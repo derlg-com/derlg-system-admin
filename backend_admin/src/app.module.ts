@@ -10,6 +10,7 @@ import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
 import { TelegramModule } from './telegram/telegram.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { TelegramModule } from './telegram/telegram.module';
     AuthModule,
     AdminModule,
     TelegramModule,
+    MonitoringModule,
   ],
   controllers: [AppController],
   providers: [AppService],
