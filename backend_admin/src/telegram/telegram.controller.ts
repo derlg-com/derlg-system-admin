@@ -17,6 +17,7 @@ import { CommandHandler } from './handlers/command.handler';
 import { CallbackHandler } from './handlers/callback.handler';
 import { LocationHandler } from './handlers/location.handler';
 import { MessageHandler } from './handlers/message.handler';
+import { BotSenderService } from './services/bot-sender.service';
 import { TelegramAuthGuard } from './guards/telegram-auth.guard';
 import { WebhookSecretGuard } from './guards/webhook-secret.guard';
 import { DriverStatusWebhookDto } from './dto/driver-status-webhook.dto';
@@ -39,6 +40,7 @@ export class TelegramController {
     private readonly callbackHandler: CallbackHandler,
     private readonly locationHandler: LocationHandler,
     private readonly messageHandler: MessageHandler,
+    private readonly botSender: BotSenderService,
   ) {
     this.webhookSecret =
       process.env.TELEGRAM_WEBHOOK_SECRET || '';
@@ -63,12 +65,48 @@ export class TelegramController {
     // Route to appropriate handler
     const response = await this.messageHandler.handleUpdate(dto as any);
 
+    // Send reply back to Telegram
+    if (response) {
+      const telegramId = this.extractTelegramId(dto as any);
+      if (telegramId) {
+        try {
+          await this.botSender.sendMessage(telegramId, response.text, {
+            parse_mode: response.parse_mode,
+            reply_markup: response.keyboard,
+          });
+        } catch (err) {
+          this.logger.error(`Failed to send reply: ${err.message}`);
+        }
+      }
+    }
+
+    // Answer callback query if present
+    if ((dto as any).callback_query?.id) {
+      try {
+        await this.botSender.answerCallbackQuery(
+          (dto as any).callback_query.id,
+        );
+      } catch (err) {
+        this.logger.error(`Failed to answer callback: ${err.message}`);
+      }
+    }
+
     return {
       success: true,
       data: response,
       message: 'ok',
       error: null,
     };
+  }
+
+  private extractTelegramId(update: any): string | null {
+    if (update.message?.from?.id) {
+      return String(update.message.from.id);
+    }
+    if (update.callback_query?.from?.id) {
+      return String(update.callback_query.from.id);
+    }
+    return null;
   }
 
   // ─── Driver Registration ───

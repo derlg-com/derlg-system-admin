@@ -66,87 +66,98 @@ export function DiscountCodeForm({ defaultValues, onSubmit, onCancel, loading = 
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-        <div className="grid grid-cols-2 gap-4">
-          <FormField control={form.control} name="code" render={({ field }) => (
-            <FormItem>
-              <FormLabel style={LABEL}>Code *</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g. SUMMER20" {...field}
-                  value={field.value.toUpperCase()}
-                  onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                  disabled={isEditing} style={S} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
+      <form onSubmit={form.handleSubmit(onSubmit)} className="px-6 pb-6 space-y-5" style={{ paddingLeft: 24, paddingRight: 24, paddingBottom: 24, paddingTop: 4 }}>
 
-          <FormField control={form.control} name="discount_type" render={({ field }) => (
-            <FormItem>
-              <FormLabel style={LABEL}>Discount Type *</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl><SelectTrigger style={S} className="w-full h-10"><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
-                <SelectContent className="z-[1100] min-w-[200px]">
-                  <SelectItem value="PERCENTAGE">Percentage (%)</SelectItem>
-                  <SelectItem value="FIXED">Fixed Amount ($)</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )} />
+        {/* Discount Details */}
+        <div className="rounded-xl space-y-4" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', padding: '16px 20px' }}>
+          <p className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)', letterSpacing: 0.2 }}>Discount Details</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <FormField control={form.control} name="code" render={({ field }) => (
+              <FormItem>
+                <FormLabel style={LABEL}>Code *</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g. SUMMER20" {...field}
+                    value={field.value.toUpperCase()}
+                    onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                    disabled={isEditing} className="w-full" style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
 
-          <FormField control={form.control} name="value" render={({ field }) => (
-            <FormItem>
-              <FormLabel style={LABEL}>{discountType === 'PERCENTAGE' ? 'Discount (%)' : 'Discount ($)'} *</FormLabel>
-              <FormControl>
-                <Input type="number" min={0} max={discountType === 'PERCENTAGE' ? 100 : undefined}
-                  step={0.01} placeholder={discountType === 'PERCENTAGE' ? 'e.g. 20' : 'e.g. 5.00'}
-                  {...field} style={S} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
+            <FormField control={form.control} name="discount_type" render={({ field }) => (
+              <FormItem>
+                <FormLabel style={LABEL}>Discount Type *</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl><SelectTrigger style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} className="w-full h-10"><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
+                  <SelectContent className="z-[1100] min-w-[200px]">
+                    <SelectItem value="PERCENTAGE">Percentage (%)</SelectItem>
+                    <SelectItem value="FIXED">Fixed Amount ($)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )} />
 
-          <FormField control={form.control} name="max_uses" render={({ field }) => (
-            <FormItem>
-              <FormLabel style={LABEL}>Max Uses</FormLabel>
-              <FormControl>
-                <Input type="number" min={1} placeholder="Unlimited" {...field}
-                  value={field.value ?? ''} onChange={e => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                  style={S} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
+            <FormField control={form.control} name="value" render={({ field }) => (
+              <FormItem>
+                <FormLabel style={LABEL}>{discountType === 'PERCENTAGE' ? 'Discount (%)' : 'Discount ($)'} *</FormLabel>
+                <FormControl>
+                  <Input type="number" min={0} max={discountType === 'PERCENTAGE' ? 100 : undefined}
+                    step={0.01} placeholder={discountType === 'PERCENTAGE' ? 'e.g. 20' : 'e.g. 5.00'}
+                    {...field} className="w-full" style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
 
-          <FormField control={form.control} name="valid_from" render={({ field }) => (
-            <FormItem>
-              <FormLabel style={LABEL}>Valid From *</FormLabel>
-              <FormControl><Input type="datetime-local" {...field} style={S} /></FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
+            <FormField control={form.control} name="min_booking_usd" render={({ field }) => (
+              <FormItem>
+                <FormLabel style={LABEL}>Min Booking (USD)</FormLabel>
+                <FormControl>
+                  <Input type="number" min={0} step={0.01} placeholder="No minimum" {...field}
+                    value={field.value ?? ''} onChange={e => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    className="w-full" style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+          </div>
+        </div>
 
-          <FormField control={form.control} name="valid_until" render={({ field }) => (
-            <FormItem>
-              <FormLabel style={LABEL}>Valid Until *</FormLabel>
-              <FormControl><Input type="datetime-local" {...field} style={S} /></FormControl>
-              <FormMessage />
-              {dateError && <p className="text-xs text-destructive mt-1">{dateError}</p>}
-            </FormItem>
-          )} />
+        {/* Validity */}
+        <div className="rounded-xl space-y-4" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', padding: '16px 20px' }}>
+          <p className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)', letterSpacing: 0.2 }}>Validity</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <FormField control={form.control} name="valid_from" render={({ field }) => (
+              <FormItem>
+                <FormLabel style={LABEL}>Valid From *</FormLabel>
+                <FormControl><Input type="datetime-local" {...field} className="w-full" style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
 
-          <FormField control={form.control} name="min_booking_usd" render={({ field }) => (
-            <FormItem>
-              <FormLabel style={LABEL}>Min Booking (USD)</FormLabel>
-              <FormControl>
-                <Input type="number" min={0} step={0.01} placeholder="No minimum" {...field}
-                  value={field.value ?? ''} onChange={e => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                  style={S} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
+            <FormField control={form.control} name="valid_until" render={({ field }) => (
+              <FormItem>
+                <FormLabel style={LABEL}>Valid Until *</FormLabel>
+                <FormControl><Input type="datetime-local" {...field} className="w-full" style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} /></FormControl>
+                <FormMessage />
+                {dateError && <p className="text-xs text-destructive mt-1">{dateError}</p>}
+              </FormItem>
+            )} />
+
+            <FormField control={form.control} name="max_uses" render={({ field }) => (
+              <FormItem>
+                <FormLabel style={LABEL}>Max Uses</FormLabel>
+                <FormControl>
+                  <Input type="number" min={1} placeholder="Unlimited" {...field}
+                    value={field.value ?? ''} onChange={e => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    className="w-full" style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+          </div>
         </div>
 
         <div className="flex justify-end gap-3 pt-2">

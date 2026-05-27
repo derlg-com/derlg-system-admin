@@ -99,12 +99,17 @@ export function AdminUserForm({ defaultValues, onSubmit, onCancel, loading = fal
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="px-6 pb-6 space-y-5" style={{ paddingLeft: 24, paddingRight: 24, paddingBottom: 24 }}>
+
+        {/* Top fields — plain grid like Driver */}
         <div className="grid grid-cols-2 gap-4">
           <FormField control={form.control} name="full_name" render={({ field }) => (
             <FormItem>
               <FormLabel style={LABEL}>Full Name *</FormLabel>
-              <FormControl><Input placeholder="e.g. John Doe" {...field} style={S} /></FormControl>
+              <FormControl>
+                <Input placeholder="e.g. John Doe" {...field}
+                  style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )} />
@@ -114,42 +119,50 @@ export function AdminUserForm({ defaultValues, onSubmit, onCancel, loading = fal
               <FormLabel style={LABEL}>Email *</FormLabel>
               <FormControl>
                 <Input type="email" placeholder="john@derlg.com" {...field} disabled={isEditing}
-                  style={{ ...S, opacity: isEditing ? 0.6 : 1 }} />
+                  style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)', opacity: isEditing ? 0.6 : 1 }} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )} />
-        </div>
 
-        <FormField control={form.control} name="admin_role" render={({ field }) => (
-          <FormItem>
-            <FormLabel style={LABEL}>Admin Role *</FormLabel>
-            <Select value={field.value} onValueChange={field.onChange}>
-              <FormControl><SelectTrigger style={S} className="w-full h-10"><SelectValue placeholder="Select role" /></SelectTrigger></FormControl>
-              <SelectContent className="z-[1100] min-w-[200px]">
-                {ROLES.map(r => <SelectItem key={r} value={r}>{r.replace(/_/g, ' ')}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )} />
-
-        {!isEditing && (
-          <FormField control={form.control} name="password" render={({ field }) => (
+          <FormField control={form.control} name="admin_role" render={({ field }) => (
             <FormItem>
-              <FormLabel style={LABEL}>Temporary Password *</FormLabel>
-              <FormControl><Input type="password" placeholder="Min 6 characters" {...field} style={S} /></FormControl>
+              <FormLabel style={LABEL}>Admin Role *</FormLabel>
+              <Select value={field.value} onValueChange={field.onChange}>
+                <FormControl>
+                  <SelectTrigger style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} className="w-full h-10">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent className="z-[1100] min-w-[200px]">
+                  {ROLES.map(r => <SelectItem key={r} value={r}>{r.replace(/_/g, ' ')}</SelectItem>)}
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )} />
-        )}
 
-        <div>
-          <FormLabel style={LABEL}>Permissions</FormLabel>
-          <div className="grid grid-cols-2 gap-2 mt-2">
+          {!isEditing ? (
+            <FormField control={form.control} name="password" render={({ field }) => (
+              <FormItem>
+                <FormLabel style={LABEL}>Temporary Password *</FormLabel>
+                <FormControl>
+                  <Input type="password" placeholder="Min 6 characters" {...field}
+                    style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+          ) : <div />}
+        </div>
+
+        {/* Permissions section — wrapped like Driver's Telegram Integration */}
+        <div className="rounded-xl space-y-4" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', padding: '16px 20px' }}>
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Permissions</p>
+          <div className="grid grid-cols-2 gap-2">
             {ALL_PERMISSIONS.map((perm) => (
               <label key={perm.key} className="flex items-center gap-2 p-2.5 rounded-lg cursor-pointer transition-colors"
-                style={{ background: 'var(--bg-elevated)', border: `1px solid ${watchedPermissions?.[perm.key] ? 'var(--brand-primary)' : 'var(--border-strong)'}` }}>
+                style={{ background: 'var(--bg-overlay)', border: `1px solid ${watchedPermissions?.[perm.key] ? 'var(--brand-primary)' : 'var(--border-strong)'}` }}>
                 <Checkbox checked={!!watchedPermissions?.[perm.key]} onCheckedChange={() => togglePermission(perm.key)} />
                 <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{perm.label}</span>
               </label>

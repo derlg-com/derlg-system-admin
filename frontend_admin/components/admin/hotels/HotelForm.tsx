@@ -71,7 +71,7 @@ export function HotelForm({ defaultValues, onSubmit, onCancel, loading = false, 
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-5">
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="px-6 pb-6 space-y-5" style={{ paddingLeft: 24, paddingRight: 24, paddingBottom: 24 }}>
 
         {/* Basic Info */}
         <div className="rounded-xl space-y-4" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', padding: '16px 20px' }}>

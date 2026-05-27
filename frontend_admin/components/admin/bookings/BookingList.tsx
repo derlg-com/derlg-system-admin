@@ -104,26 +104,29 @@ export function BookingList() {
   const columns = [
     {
       key: 'booking_ref',
-      label: 'Ref',
+      label: <span style={{ display: 'inline-block', paddingLeft: 32 }}>Ref</span>,
       sortable: true,
       render: (r: Booking) => (
-        <span
-          style={{
-            fontFamily: 'monospace',
-            fontSize: 12,
-            color: 'var(--brand-primary)',
-            background: 'var(--brand-primary-muted)',
-            padding: '2px 8px',
-            borderRadius: 4,
-          }}
-        >
-          {r.booking_ref}
-        </span>
+        <div style={{ paddingLeft: 32 }}>
+          <span
+            style={{
+              fontFamily: 'monospace',
+              fontSize: 12,
+              color: 'var(--brand-primary)',
+              background: 'var(--brand-primary-muted)',
+              padding: '2px 8px',
+              borderRadius: 4,
+            }}
+          >
+            {r.booking_ref}
+          </span>
+        </div>
       ),
     },
     {
       key: 'user',
       label: 'Customer',
+      headerClassName: 'whitespace-nowrap',
       render: (r: Booking) => (
         <div>
           <p className="text-sm font-medium">{r.user?.name || r.user_id}</p>

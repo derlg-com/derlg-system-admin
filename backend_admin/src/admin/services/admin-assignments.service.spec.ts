@@ -4,6 +4,7 @@ import { AssignmentStatus, DriverStatus } from '@prisma/client';
 import { AdminAssignmentsService } from './admin-assignments.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
+import { TelegramService } from '../../telegram/telegram.service';
 
 const mockAssignment = {
   id: 'assignment-uuid-1',
@@ -87,6 +88,11 @@ describe('AdminAssignmentsService', () => {
     getClient: jest.fn().mockReturnValue(mockRedisClient),
   };
 
+  const mockTelegramService = {
+    sendAssignmentNotification: jest.fn().mockResolvedValue(undefined),
+    queueAssignmentTimeout: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -95,6 +101,7 @@ describe('AdminAssignmentsService', () => {
         AdminAssignmentsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: RedisService, useValue: mockRedisService },
+        { provide: TelegramService, useValue: mockTelegramService },
       ],
     }).compile();
 

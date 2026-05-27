@@ -7,6 +7,7 @@ import {
 import { AssignmentStatus, DriverStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
+import { TelegramService } from '../../telegram/telegram.service';
 import { AssignmentResponseDto } from '../dto/assignment-response.dto';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class AdminAssignmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly telegramService: TelegramService,
   ) {}
 
   async getAssignments(filters: {
@@ -182,6 +184,16 @@ export class AdminAssignmentsService {
       vehicleId: dto.vehicleId,
       timestamp: new Date().toISOString(),
     });
+
+    // Send Telegram notification to driver
+    try {
+      await this.telegramService.sendAssignmentNotification(assignment.id);
+      await this.telegramService.queueAssignmentTimeout(assignment.id);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to send Telegram notification for assignment ${assignment.id}: ${err.message}`,
+      );
+    }
 
     return assignment;
   }

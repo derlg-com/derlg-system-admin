@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { TelegramModule } from '../telegram/telegram.module';
 
 // Controllers
 import { AdminDashboardController } from './controllers/admin-dashboard.controller';
@@ -45,7 +46,7 @@ import { AdminRoleGuard } from './guards/admin-role.guard';
 import { AdminGateway } from './websocket/admin.gateway';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, TelegramModule],
   controllers: [
     AdminDashboardController,
     AdminDriversController,
