@@ -29,6 +29,8 @@ export interface Column<T> {
   render?: (row: T) => React.ReactNode
   width?: string
   sortable?: boolean
+  headerClassName?: string
+  cellClassName?: string
 }
 
 export interface FilterConfig {
@@ -133,7 +135,7 @@ export function DataTable<T extends Record<string, any> = Record<string, any>>({
           <TableHeader>
             <TableRow style={{ background: 'var(--bg-elevated)' }}>
               {columns.map((col) => (
-                <TableHead key={col.key} style={{ width: col.width }}>
+                <TableHead key={col.key} style={{ width: col.width }} className={col.headerClassName}>
                   {col.label}
                 </TableHead>
               ))}
@@ -144,7 +146,7 @@ export function DataTable<T extends Record<string, any> = Record<string, any>>({
             {Array.from({ length: 5 }).map((_, i) => (
               <TableRow key={i} style={{ borderBottom: '1px solid var(--border-strong)' }}>
                 {columns.map((col) => (
-                  <TableCell key={col.key}>
+                  <TableCell key={col.key} className={col.cellClassName}>
                     <Skeleton className="h-4 w-[70%]" />
                   </TableCell>
                 ))}
@@ -195,7 +197,8 @@ export function DataTable<T extends Record<string, any> = Record<string, any>>({
                     style={{ width: col.width }}
                     className={cn(
                       'whitespace-nowrap select-none',
-                      col.sortable && 'cursor-pointer hover:text-foreground'
+                      col.sortable && 'cursor-pointer hover:text-foreground',
+                      col.headerClassName
                     )}
                     onClick={() => col.sortable && handleSort(col.key)}
                     aria-sort={
@@ -235,7 +238,7 @@ export function DataTable<T extends Record<string, any> = Record<string, any>>({
                   }}
                 >
                   {columns.map((col) => (
-                    <TableCell key={col.key} className="whitespace-nowrap">
+                    <TableCell key={col.key} className={cn('whitespace-nowrap', col.cellClassName)}>
                       {col.render ? col.render(row) : String(row[col.key] ?? '-')}
                     </TableCell>
                   ))}

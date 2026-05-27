@@ -62,10 +62,12 @@ export function CustomerList() {
           columns={[
             {
               key: 'name',
-              label: 'Name',
+              label: <span style={{ display: 'inline-block', paddingLeft: 32 }}>Name</span>,
               sortable: true,
               render: (r: Customer) => (
-                <span className="font-medium">{r.name}</span>
+                <div style={{ paddingLeft: 32 }}>
+                  <span className="font-medium">{r.name}</span>
+                </div>
               ),
             },
             { key: 'email', label: 'Email' },

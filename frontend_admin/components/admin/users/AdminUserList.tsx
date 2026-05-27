@@ -132,10 +132,12 @@ export function AdminUserList() {
           columns={[
             {
               key: 'name',
-              label: 'Name',
+              label: <span style={{ display: 'inline-block', paddingLeft: 32 }}>Name</span>,
               sortable: true,
               render: (r: AdminUser) => (
-                <span className="font-medium">{r.name}</span>
+                <div style={{ paddingLeft: 32 }}>
+                  <span className="font-medium">{r.name}</span>
+                </div>
               ),
             },
             {
@@ -213,8 +215,14 @@ export function AdminUserList() {
 
       {/* Form Dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent
+          className="w-full max-w-2xl sm:max-w-2xl max-h-[90vh] overflow-y-auto p-0 rounded-2xl"
+          style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-xl)' }}
+        >
+          <DialogHeader
+            className="px-6 py-5"
+            style={{ paddingLeft: 24, paddingRight: 24, paddingTop: 20, paddingBottom: 20, borderBottom: '1px solid var(--border-default)' }}
+          >
             <DialogTitle>
               {editing ? 'Edit Admin User' : 'Add Admin User'}
             </DialogTitle>

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TelegramService } from './telegram.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { BotSenderService } from './services/bot-sender.service';
 import { getQueueToken } from '@nestjs/bullmq';
 import { DriverStatus, AssignmentStatus } from '@prisma/client';
 
@@ -9,6 +10,7 @@ describe('TelegramService', () => {
   let service: TelegramService;
 
   const mockPrisma = {
+    $transaction: jest.fn().mockImplementation((ops) => Promise.all(ops)),
     driver: {
       findUnique: jest.fn(),
       update: jest.fn(),
@@ -71,6 +73,11 @@ describe('TelegramService', () => {
     add: jest.fn().mockResolvedValue({ id: 'job-2' }),
   };
 
+  const mockBotSender = {
+    sendMessage: jest.fn().mockResolvedValue({ message_id: 1 }),
+    sendPhoto: jest.fn().mockResolvedValue({ message_id: 2 }),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -79,6 +86,7 @@ describe('TelegramService', () => {
         TelegramService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: RedisService, useValue: mockRedis },
+        { provide: BotSenderService, useValue: mockBotSender },
         { provide: getQueueToken('broadcast'), useValue: mockBroadcastQueue },
         { provide: getQueueToken('assignment-timeout'), useValue: mockAssignmentTimeoutQueue },
       ],

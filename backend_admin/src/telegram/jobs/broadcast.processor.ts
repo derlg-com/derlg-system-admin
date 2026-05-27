@@ -2,17 +2,21 @@ import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BotSenderService } from '../services/bot-sender.service';
 
 @Processor('broadcast')
 export class BroadcastProcessor extends WorkerHost {
   private readonly logger = new Logger(BroadcastProcessor.name);
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly botSender: BotSenderService,
+  ) {
     super();
   }
 
   async process(job: Job): Promise<any> {
-    const { broadcastId, targets } = job.data;
+    const { broadcastId, targets, imageUrl } = job.data;
 
     this.logger.log(
       `Processing broadcast ${broadcastId} with ${targets.length} targets`,
@@ -24,8 +28,15 @@ export class BroadcastProcessor extends WorkerHost {
 
     for (const target of targets) {
       try {
-        // Simulate sending message (integrate with actual Telegram Bot API)
-        await this.sendMessage(target.chatId, target.message);
+        if (imageUrl) {
+          await this.botSender.sendPhoto(target.chatId, imageUrl, target.message, {
+            parse_mode: 'HTML',
+          });
+        } else {
+          await this.botSender.sendMessage(target.chatId, target.message, {
+            parse_mode: 'HTML',
+          });
+        }
         sentCount++;
       } catch (err) {
         this.logger.warn(
@@ -57,11 +68,6 @@ export class BroadcastProcessor extends WorkerHost {
     this.logger.error(
       `Broadcast job ${job.id} failed: ${err.message}`,
     );
-  }
-
-  private async sendMessage(chatId: string, message: string): Promise<void> {
-    // Placeholder for actual Telegram Bot API integration
-    this.logger.debug(`Sending message to ${chatId}: ${message}`);
   }
 
   private sleep(ms: number): Promise<void> {
