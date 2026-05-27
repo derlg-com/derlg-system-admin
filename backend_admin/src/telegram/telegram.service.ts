@@ -8,9 +8,11 @@ import {
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { DriverStatus, AssignmentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { BotSenderService } from './services/bot-sender.service';
 
 @Injectable()
 export class TelegramService {
@@ -19,6 +21,7 @@ export class TelegramService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly botSender: BotSenderService,
     @InjectQueue('broadcast') private readonly broadcastQueue: Queue,
     @InjectQueue('assignment-timeout')
     private readonly assignmentTimeoutQueue: Queue,
@@ -362,15 +365,33 @@ export class TelegramService {
       throw new NotFoundException('Driver not found');
     }
 
-    const assignment = await this.prisma.driverAssignment.update({
-      where: { id: assignmentId, driverId: driver.id },
-      data: {
-        status: AssignmentStatus.ACCEPTED,
-        responseTimestamp: new Date(),
-      },
-    });
+    const [assignment] = await this.prisma.$transaction([
+      this.prisma.driverAssignment.update({
+        where: { id: assignmentId, driverId: driver.id },
+        data: {
+          status: AssignmentStatus.ACCEPTED,
+          responseTimestamp: new Date(),
+        },
+      }),
+      this.prisma.driver.update({
+        where: { id: driver.id },
+        data: {
+          status: DriverStatus.BUSY,
+          lastTelegramActivity: new Date(),
+        },
+      }),
+    ]);
 
     await this.publishAssignmentEvent(assignment);
+
+    await this.redis.getClient().publish(
+      `driver_status_changed:${driver.id}`,
+      JSON.stringify({
+        driverId: driver.id,
+        status: DriverStatus.BUSY,
+        timestamp: new Date().toISOString(),
+      }),
+    );
 
     return assignment;
   }
@@ -388,18 +409,26 @@ export class TelegramService {
       throw new NotFoundException('Driver not found');
     }
 
-    const assignment = await this.prisma.driverAssignment.update({
-      where: { id: assignmentId, driverId: driver.id },
-      data: {
-        status: AssignmentStatus.REJECTED,
-        responseTimestamp: new Date(),
-        rejectionReason: reason || null,
-      },
-    });
+    const [assignment] = await this.prisma.$transaction([
+      this.prisma.driverAssignment.update({
+        where: { id: assignmentId, driverId: driver.id },
+        data: {
+          status: AssignmentStatus.REJECTED,
+          responseTimestamp: new Date(),
+          rejectionReason: reason || null,
+        },
+      }),
+      this.prisma.driver.update({
+        where: { id: driver.id },
+        data: {
+          status: DriverStatus.AVAILABLE,
+          lastTelegramActivity: new Date(),
+        },
+      }),
+    ]);
 
     await this.publishAssignmentEvent(assignment);
 
-    // Notify Admin Panel
     await this.redis.getClient().publish(
       'driver_assignments',
       JSON.stringify({
@@ -407,6 +436,15 @@ export class TelegramService {
         assignmentId: assignment.id,
         driverId: assignment.driverId,
         reason: assignment.rejectionReason,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+
+    await this.redis.getClient().publish(
+      `driver_status_changed:${driver.id}`,
+      JSON.stringify({
+        driverId: driver.id,
+        status: DriverStatus.AVAILABLE,
         timestamp: new Date().toISOString(),
       }),
     );
@@ -423,13 +461,49 @@ export class TelegramService {
       throw new NotFoundException('Driver not found');
     }
 
-    return this.prisma.driverAssignment.update({
-      where: { id: assignmentId, driverId: driver.id },
-      data: {
-        status: AssignmentStatus.ACCEPTED,
-        tripStartTime: new Date(),
-      },
+    const assignment = await this.prisma.driverAssignment.findUnique({
+      where: { id: assignmentId },
     });
+
+    if (!assignment || assignment.driverId !== driver.id) {
+      throw new NotFoundException('Assignment not found');
+    }
+
+    const [updatedAssignment] = await this.prisma.$transaction([
+      this.prisma.driverAssignment.update({
+        where: { id: assignmentId },
+        data: {
+          status: AssignmentStatus.ACCEPTED,
+          tripStartTime: new Date(),
+        },
+      }),
+      this.prisma.driver.update({
+        where: { id: driver.id },
+        data: {
+          status: DriverStatus.BUSY,
+          lastTelegramActivity: new Date(),
+        },
+      }),
+      ...(assignment.bookingId
+        ? [
+            this.prisma.booking.update({
+              where: { id: assignment.bookingId },
+              data: { status: 'in_progress' as any },
+            }),
+          ]
+        : []),
+    ]);
+
+    await this.redis.getClient().publish(
+      `driver_status_changed:${driver.id}`,
+      JSON.stringify({
+        driverId: driver.id,
+        status: DriverStatus.BUSY,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+
+    return updatedAssignment;
   }
 
   async completeTrip(telegramId: string, assignmentId: string) {
@@ -441,13 +515,49 @@ export class TelegramService {
       throw new NotFoundException('Driver not found');
     }
 
-    return this.prisma.driverAssignment.update({
-      where: { id: assignmentId, driverId: driver.id },
-      data: {
-        status: AssignmentStatus.COMPLETED,
-        completionTimestamp: new Date(),
-      },
+    const assignment = await this.prisma.driverAssignment.findUnique({
+      where: { id: assignmentId },
     });
+
+    if (!assignment || assignment.driverId !== driver.id) {
+      throw new NotFoundException('Assignment not found');
+    }
+
+    const [updatedAssignment] = await this.prisma.$transaction([
+      this.prisma.driverAssignment.update({
+        where: { id: assignmentId },
+        data: {
+          status: AssignmentStatus.COMPLETED,
+          completionTimestamp: new Date(),
+        },
+      }),
+      this.prisma.driver.update({
+        where: { id: driver.id },
+        data: {
+          status: DriverStatus.AVAILABLE,
+          lastTelegramActivity: new Date(),
+        },
+      }),
+      ...(assignment.bookingId
+        ? [
+            this.prisma.booking.update({
+              where: { id: assignment.bookingId },
+              data: { status: 'completed' as any },
+            }),
+          ]
+        : []),
+    ]);
+
+    await this.redis.getClient().publish(
+      `driver_status_changed:${driver.id}`,
+      JSON.stringify({
+        driverId: driver.id,
+        status: DriverStatus.AVAILABLE,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+
+    return updatedAssignment;
   }
 
   async queueAssignmentTimeout(assignmentId: string) {
@@ -456,6 +566,104 @@ export class TelegramService {
       { assignmentId },
       { delay: 5 * 60 * 1000 }, // 5 minutes
     );
+  }
+
+  async sendAssignmentNotification(assignmentId: string) {
+    const assignment = await this.prisma.driverAssignment.findUnique({
+      where: { id: assignmentId },
+      include: { driver: true },
+    });
+
+    if (!assignment) {
+      this.logger.warn(`Assignment ${assignmentId} not found for notification`);
+      return;
+    }
+
+    if (!assignment.driver.telegramId) {
+      this.logger.warn(
+        `Driver ${assignment.driver.id} has no telegram_id, skipping notification`,
+      );
+      return;
+    }
+
+    const booking = assignment.bookingId
+      ? await this.prisma.booking.findUnique({
+          where: { id: assignment.bookingId },
+          select: {
+            reference: true,
+            start_date: true,
+            passenger_count: true,
+            totalUsd: true,
+            users: { select: { full_name: true, phone: true } },
+          },
+        })
+      : null;
+
+    const pickupTime = booking?.start_date
+      ? new Date(booking.start_date).toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : 'TBD';
+
+    const message =
+      `New Trip Assignment!\n\n` +
+      `Pickup: ${pickupTime}\n` +
+      `Customer: ${booking?.users?.full_name || 'N/A'}\n` +
+      `Passengers: ${booking?.passenger_count || 1}\n` +
+      `Booking: ${booking?.reference || 'N/A'}\n\n` +
+      `Please respond within 5 minutes`;
+
+    const chatId = String(assignment.driver.telegramId);
+
+    try {
+      await this.botSender.sendMessage(chatId, message, {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: 'Accept Trip',
+                callback_data: `assignment:accept:${assignmentId}`,
+              },
+              {
+                text: 'Reject Trip',
+                callback_data: `assignment:reject:${assignmentId}`,
+              },
+            ],
+          ],
+        },
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Failed to send assignment notification to ${chatId}: ${err.message}`,
+      );
+      return;
+    }
+
+    this.logger.log(
+      `Sent assignment notification to driver ${assignment.driver.id} (telegram: ${chatId})`,
+    );
+
+    return {
+      chatId,
+      text: message,
+      keyboard: {
+        inline_keyboard: [
+          [
+            {
+              text: 'Accept Trip',
+              callback_data: `assignment:accept:${assignmentId}`,
+            },
+            {
+              text: 'Reject Trip',
+              callback_data: `assignment:reject:${assignmentId}`,
+            },
+          ],
+        ],
+      },
+    };
   }
 
   // ─── Trip History & Earnings ───
@@ -745,6 +953,7 @@ export class TelegramService {
     await this.broadcastQueue.add('send', {
       broadcastId: broadcast.id,
       targets,
+      imageUrl: dto.imageUrl,
     });
 
     return {

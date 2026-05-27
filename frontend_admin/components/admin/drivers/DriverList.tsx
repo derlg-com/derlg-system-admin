@@ -149,7 +149,12 @@ export function DriverList() {
   }
 
   const columns = [
-    { key: 'driver_name', label: 'Name', sortable: true },
+    {
+      key: 'driver_name',
+      label: <span style={{ display: 'inline-block', paddingLeft: 32 }}>Name</span>,
+      sortable: true,
+      render: (r: Driver) => <div style={{ paddingLeft: 32 }}>{r.driver_name ?? '—'}</div>,
+    },
     { key: 'driver_id', label: 'Driver ID', sortable: true },
     {
       key: 'vehicle_name',

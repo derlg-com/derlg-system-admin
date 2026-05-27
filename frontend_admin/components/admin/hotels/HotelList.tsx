@@ -161,10 +161,10 @@ export function HotelList() {
           columns={[
             {
               key: 'name',
-              label: 'Hotel Name',
+              label: <span style={{ display: 'inline-block', paddingLeft: 32 }}>Hotel Name</span>,
               sortable: true,
               render: (r: Hotel) => (
-                <div className="flex items-center gap-2">
+                <div style={{ paddingLeft: 32 }} className="flex items-center gap-2">
                   {r.images && r.images.length > 0 ? (
                     <img
                       src={r.images[0]}
@@ -270,8 +270,8 @@ export function HotelList() {
 
       {/* Hotel Form Dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
+          <DialogHeader className="px-6 pt-8 pb-5" style={{ paddingLeft: 24, paddingRight: 24, paddingTop: 32 }}>
             <DialogTitle>
               {editing ? 'Edit Hotel' : 'Create Hotel'}
             </DialogTitle>

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Plus, Edit2, Eye, Trash2, Star, MapPin } from 'lucide-react'
 import { guidesApi } from '@/lib/api'
 import { DataTable } from '@/components/shared/DataTable'
-import { SearchInput, PageHeader, ConfirmDialog } from '@/components/shared'
+import { SearchInput, FilterDropdown, PageHeader, ConfirmDialog } from '@/components/shared'
 import { GuideForm, type GuideFormData } from './GuideForm'
 import {
   Dialog,
@@ -177,21 +177,47 @@ export function GuideList() {
 
       {/* Filters */}
       <div className="flex flex-col gap-3 mb-5">
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          placeholder="Search by name or specialty..."
-          style={{ minWidth: 260, maxWidth: 400 }}
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Search by name or specialty..."
+            style={{ minWidth: 260, maxWidth: 360, flex: '1 1 260px' }}
+          />
+          <FilterDropdown
+            label="Languages"
+            placeholder="All Languages"
+            options={ALL_LANGUAGES.map(l => ({ label: l, value: l }))}
+            value={langFilter}
+            onChange={setLangFilter}
+          />
+          <FilterDropdown
+            label="Specialties"
+            placeholder="All Specialties"
+            options={ALL_SPECIALTIES.map(s => ({ label: s, value: s }))}
+            value={specFilter}
+            onChange={setSpecFilter}
+          />
+          {(langFilter.length > 0 || specFilter.length > 0) && (
+            <button
+              className="text-sm font-medium px-3 h-10 rounded-lg transition-colors"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-strong)' }}
+              onClick={() => { setLangFilter([]); setSpecFilter([]) }}
+            >
+              Clear all
+            </button>
+          )}
+        </div>
         {(langFilter.length > 0 || specFilter.length > 0) && (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Filters:</span>
+            <span className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Active:</span>
             {langFilter.map((lang) => (
               <span
                 key={lang}
                 onClick={() => toggleLangFilter(lang)}
                 className="inline-flex items-center gap-1 text-sm font-medium px-3 py-1 rounded-full cursor-pointer select-none"
                 style={{ background: 'var(--brand-primary)', color: '#fff' }}
+                title="Click to remove"
               >
                 {lang}
                 <span style={{ opacity: 0.8, marginLeft: 2 }}>×</span>
@@ -203,18 +229,12 @@ export function GuideList() {
                 onClick={() => toggleSpecFilter(spec)}
                 className="inline-flex items-center gap-1 text-sm font-medium px-3 py-1 rounded-full cursor-pointer select-none"
                 style={{ background: 'var(--brand-secondary)', color: '#fff' }}
+                title="Click to remove"
               >
                 {spec}
                 <span style={{ opacity: 0.8, marginLeft: 2 }}>×</span>
               </span>
             ))}
-            <button
-              className="text-sm font-medium px-3 py-1 rounded-full transition-colors"
-              style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-strong)' }}
-              onClick={() => { setLangFilter([]); setSpecFilter([]) }}
-            >
-              Clear all
-            </button>
           </div>
         )}
       </div>
@@ -228,10 +248,10 @@ export function GuideList() {
           columns={[
             {
               key: 'name',
-              label: 'Name',
+              label: <span style={{ display: 'inline-block', paddingLeft: 32 }}>Name</span>,
               sortable: true,
               render: (r: Guide) => (
-                <div className="flex items-center gap-2">
+                <div style={{ paddingLeft: 32 }} className="flex items-center gap-2">
                   {r.profile_picture ? (
                     <img
                       src={r.profile_picture}
@@ -351,60 +371,10 @@ export function GuideList() {
         />
       </div>
 
-      {/* Filter panels */}
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="card">
-          <h4 className="text-sm font-medium mb-3">Filter by Language</h4>
-          <div className="flex flex-wrap gap-3">
-            {ALL_LANGUAGES.map((lang) => (
-              <button
-                key={lang}
-                onClick={() => toggleLangFilter(lang)}
-                style={langFilter.includes(lang) ? {
-                  background: 'var(--brand-primary)',
-                  color: '#fff',
-                  border: '1px solid var(--brand-primary)',
-                } : {
-                  background: 'var(--bg-elevated)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border-strong)',
-                }}
-                className="text-sm px-5 py-2 rounded-full transition-all hover:border-primary hover:text-primary whitespace-nowrap"
-              >
-                {lang}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="card">
-          <h4 className="text-sm font-medium mb-3">Filter by Specialty</h4>
-          <div className="flex flex-wrap gap-3">
-            {ALL_SPECIALTIES.map((spec) => (
-              <button
-                key={spec}
-                onClick={() => toggleSpecFilter(spec)}
-                style={specFilter.includes(spec) ? {
-                  background: 'var(--brand-secondary)',
-                  color: '#fff',
-                  border: '1px solid var(--brand-secondary)',
-                } : {
-                  background: 'var(--bg-elevated)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border-strong)',
-                }}
-                className="text-sm px-5 py-2 rounded-full transition-all hover:border-primary hover:text-primary whitespace-nowrap"
-              >
-                {spec}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
       {/* Guide Form Dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
+          <DialogHeader className="px-6 pt-8 pb-5" style={{ paddingLeft: 24, paddingRight: 24, paddingTop: 32 }}>
             <DialogTitle>{editing ? 'Edit Guide' : 'Create Guide'}</DialogTitle>
           </DialogHeader>
           <GuideForm

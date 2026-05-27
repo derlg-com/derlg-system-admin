@@ -367,3 +367,26 @@ All corresponding list components updated to pass correct field names in `defaul
 - Profile Picture (upload + preview)
 
 **TypeScript:** `npx tsc --noEmit` passes with 0 errors.
+
+
+---
+
+## Fix 11: Select Dropdown — Readable Dark Theme
+
+**Date:** 2026-05-22
+**File:** `components/ui/select.tsx`
+
+**Problem:** Select dropdown options (e.g. Discount Type "Percentage" / "Fixed Amount") were nearly invisible — `bg-popover` and `text-popover-foreground` resolved to colors that blended with the dark background. Hover/focus state used `bg-accent` which was also barely visible.
+
+**Solution:**
+- `SelectContent`: replaced `bg-popover text-popover-foreground` with inline styles `var(--bg-overlay)` background + `var(--border-strong)` border + `var(--text-primary)` text — same pattern used for `DropdownMenuContent` (Fix 8)
+- `SelectItem`:
+  - Padding increased: `py-1.5 pl-2` → `py-2 pl-3` for easier clicking
+  - `cursor-default` → `cursor-pointer`
+  - Text: `var(--text-primary)` (white)
+  - Hover/focus: `var(--bg-hover)` background highlight
+  - Selected (checked): `var(--brand-primary-muted)` background + `var(--brand-primary)` blue text
+
+**Affected:** every `<Select>` in the app — Discount form (discount_type), Vehicle form (vehicle_type, pricing_model), Driver form (vehicle_id, admin_role), Admin User form (admin_role), Audit log (action_type filter), Booking modification, Maintenance scheduler.
+
+**TypeScript:** `npx tsc --noEmit` passes with 0 errors.

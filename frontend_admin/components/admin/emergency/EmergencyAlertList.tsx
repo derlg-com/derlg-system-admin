@@ -231,17 +231,19 @@ export function EmergencyAlertList() {
           columns={[
             {
               key: 'alert_type',
-              label: 'Type',
+              label: <span style={{ display: 'inline-block', paddingLeft: 32 }}>Type</span>,
               render: (r: EmergencyAlert) => (
-                <span
-                  className="inline-flex items-center gap-1.5 font-semibold"
-                  style={{ color: ALERT_COLORS[r.alert_type] || 'var(--text-primary)' }}
-                >
-                  <div style={{ color: ALERT_COLORS[r.alert_type] || 'var(--text-primary)' }}>
-                    <AlertTriangle className="size-4" />
-                  </div>
-                  {r.alert_type}
-                </span>
+                <div style={{ paddingLeft: 32 }}>
+                  <span
+                    className="inline-flex items-center gap-1.5 font-semibold"
+                    style={{ color: ALERT_COLORS[r.alert_type] || 'var(--text-primary)' }}
+                  >
+                    <div style={{ color: ALERT_COLORS[r.alert_type] || 'var(--text-primary)' }}>
+                      <AlertTriangle className="size-4" />
+                    </div>
+                    {r.alert_type}
+                  </span>
+                </div>
               ),
             },
             {

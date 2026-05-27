@@ -6,6 +6,7 @@ import { CallbackHandler } from './handlers/callback.handler';
 import { LocationHandler } from './handlers/location.handler';
 import { MessageHandler } from './handlers/message.handler';
 import { TelegramAuthGuard } from './guards/telegram-auth.guard';
+import { BotSenderService } from './services/bot-sender.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { DriverStatus } from '@prisma/client';
@@ -53,6 +54,11 @@ describe('TelegramController', () => {
     handleUpdate: jest.fn(),
   };
 
+  const mockBotSender = {
+    sendMessage: jest.fn().mockResolvedValue({ message_id: 1 }),
+    answerCallbackQuery: jest.fn().mockResolvedValue(true),
+  };
+
   const mockPrisma = {
     driver: { findUnique: jest.fn() },
     adminUser: { findFirst: jest.fn() },
@@ -76,6 +82,7 @@ describe('TelegramController', () => {
         { provide: CallbackHandler, useValue: mockCallbackHandler },
         { provide: LocationHandler, useValue: mockLocationHandler },
         { provide: MessageHandler, useValue: mockMessageHandler },
+        { provide: BotSenderService, useValue: mockBotSender },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: RedisService, useValue: mockRedis },
         TelegramAuthGuard,

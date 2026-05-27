@@ -108,7 +108,12 @@ export function VehicleList() {
   }
 
   const columns = [
-    { key: 'name', label: 'Name', sortable: true },
+    {
+      key: 'name',
+      label: <span style={{ display: 'inline-block', paddingLeft: 32 }}>Name</span>,
+      sortable: true,
+      render: (r: Vehicle) => <div style={{ paddingLeft: 32 }}>{r.name ?? '—'}</div>,
+    },
     {
       key: 'vehicle_type',
       label: 'Category',

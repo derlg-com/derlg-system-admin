@@ -7,6 +7,8 @@ import { CallbackHandler } from './handlers/callback.handler';
 import { LocationHandler } from './handlers/location.handler';
 import { MessageHandler } from './handlers/message.handler';
 import { TelegramAuthGuard } from './guards/telegram-auth.guard';
+import { BotSenderService } from './services/bot-sender.service';
+import { SessionService } from './services/session.service';
 import { BroadcastProcessor } from './jobs/broadcast.processor';
 import { AssignmentTimeoutProcessor } from './jobs/assignment-timeout.processor';
 import { LocationCleanupProcessor } from './jobs/location-cleanup.processor';
@@ -27,10 +29,12 @@ import { LocationCleanupProcessor } from './jobs/location-cleanup.processor';
     LocationHandler,
     MessageHandler,
     TelegramAuthGuard,
+    BotSenderService,
+    SessionService,
     BroadcastProcessor,
     AssignmentTimeoutProcessor,
     LocationCleanupProcessor,
   ],
-  exports: [TelegramService],
+  exports: [TelegramService, BotSenderService],
 })
 export class TelegramModule {}
