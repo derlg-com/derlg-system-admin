@@ -22,6 +22,7 @@
     "test:telegram:load": "ts-node scripts/telegram-load-test.ts"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.0.1",
@@ -34,6 +35,7 @@
     "@nestjs/platform-socket.io": "^11.1.21",
     "@nestjs/terminus": "^11.1.1",
     "@nestjs/websockets": "^11.1.21",
+    "@prisma/adapter-neon": "^7.8.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@sentry/nestjs": "^10.54.0",

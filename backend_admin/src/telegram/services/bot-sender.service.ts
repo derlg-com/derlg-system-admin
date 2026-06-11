@@ -161,6 +161,22 @@ export class BotSenderService {
     return this.post<boolean>('deleteWebhook', {});
   }
 
+  async getUpdates(offset?: number): Promise<
+    {
+      update_id: number;
+      message?: any;
+      callback_query?: any;
+      edited_message?: any;
+    }[]
+  > {
+    const body: Record<string, unknown> = { limit: 100 };
+    if (offset !== undefined) {
+      body.offset = offset;
+    }
+    const result = await this.post<any[]>('getUpdates', body);
+    return result || [];
+  }
+
   async healthCheck(): Promise<{ status: string; bot_name?: string; error?: string }> {
     try {
       const result = await this.post<{ username: string; first_name: string }>('getMe', {});

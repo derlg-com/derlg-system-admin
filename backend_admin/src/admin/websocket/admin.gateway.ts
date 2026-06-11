@@ -147,7 +147,14 @@ export class AdminGateway
   }
 
   private subscribeToRedis() {
-    const subscriber = this.redis.getClient().duplicate();
+    const client = this.redis.getClient();
+    if (!client) {
+      this.logger.warn('Redis client not ready, retrying in 1s...');
+      setTimeout(() => this.subscribeToRedis(), 1000);
+      return;
+    }
+
+    const subscriber = client.duplicate();
 
     const patterns = [
       'admin_events',

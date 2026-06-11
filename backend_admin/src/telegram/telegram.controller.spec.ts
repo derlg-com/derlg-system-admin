@@ -1,13 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TelegramController } from './telegram.controller';
 import { TelegramService } from './telegram.service';
-import { CommandHandler } from './handlers/command.handler';
-import { CallbackHandler } from './handlers/callback.handler';
-import { LocationHandler } from './handlers/location.handler';
-import { MessageHandler } from './handlers/message.handler';
+import { UpdateProcessorService } from './services/update-processor.service';
 import { TelegramAuthGuard } from './guards/telegram-auth.guard';
-import { BotSenderService } from './services/bot-sender.service';
-import { MetricsService } from '../monitoring/metrics.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { DriverStatus } from '@prisma/client';
@@ -39,36 +34,12 @@ describe('TelegramController', () => {
     queueAssignmentTimeout: jest.fn(),
   };
 
-  const mockCommandHandler = {
-    handleCommand: jest.fn(),
-  };
-
-  const mockCallbackHandler = {
-    handleCallback: jest.fn(),
-  };
-
-  const mockLocationHandler = {
-    handleLocation: jest.fn(),
-  };
-
-  const mockMessageHandler = {
-    handleUpdate: jest.fn(),
-  };
-
-  const mockBotSender = {
-    sendMessage: jest.fn().mockResolvedValue({ message_id: 1 }),
-    answerCallbackQuery: jest.fn().mockResolvedValue(true),
-  };
-
-  const mockMetrics = {
-    recordWebhookRequest: jest.fn(),
-    recordCommandUsage: jest.fn(),
-    recordResponseTime: jest.fn(),
+  const mockUpdateProcessor = {
+    processUpdate: jest.fn(),
   };
 
   const mockPrisma = {
     driver: { findUnique: jest.fn() },
-    adminUser: { findFirst: jest.fn() },
   };
 
   const mockRedis = {
@@ -85,12 +56,7 @@ describe('TelegramController', () => {
       controllers: [TelegramController],
       providers: [
         { provide: TelegramService, useValue: mockService },
-        { provide: CommandHandler, useValue: mockCommandHandler },
-        { provide: CallbackHandler, useValue: mockCallbackHandler },
-        { provide: LocationHandler, useValue: mockLocationHandler },
-        { provide: MessageHandler, useValue: mockMessageHandler },
-        { provide: BotSenderService, useValue: mockBotSender },
-        { provide: MetricsService, useValue: mockMetrics },
+        { provide: UpdateProcessorService, useValue: mockUpdateProcessor },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: RedisService, useValue: mockRedis },
         TelegramAuthGuard,
@@ -101,13 +67,12 @@ describe('TelegramController', () => {
   });
 
   describe('handleWebhook', () => {
-    it('should process webhook and route to message handler', async () => {
-      mockService.handleWebhook.mockResolvedValue({
-        telegramId: '123456',
-        update: { update_id: 1 },
-      });
-      mockMessageHandler.handleUpdate.mockResolvedValue({
-        text: 'Welcome!',
+    it('should delegate to update processor', async () => {
+      mockUpdateProcessor.processUpdate.mockResolvedValue({
+        success: true,
+        data: { text: 'Welcome!' },
+        message: 'ok',
+        error: null,
       });
 
       const result = await controller.handleWebhook({
@@ -121,19 +86,8 @@ describe('TelegramController', () => {
         },
       } as any);
 
+      expect(mockUpdateProcessor.processUpdate).toHaveBeenCalled();
       expect(result.success).toBe(true);
-      expect(result.data).toEqual({ text: 'Welcome!' });
-    });
-
-    it('should handle duplicate updates gracefully', async () => {
-      mockService.handleWebhook.mockResolvedValue(null);
-
-      const result = await controller.handleWebhook({
-        update_id: 1,
-      } as any);
-
-      expect(result.success).toBe(true);
-      expect(result.message).toBe('Duplicate or invalid update');
     });
   });
 

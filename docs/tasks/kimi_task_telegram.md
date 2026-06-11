@@ -440,7 +440,11 @@ The Telegram Bot enables transportation drivers to manage availability and trip 
 - `npm run build` — ✅ passes (0 errors)
 - `npm run test` — ✅ 39 suites, 352 tests passed
 
+### Dev Mode (Polling)
+- Local testing now works via **polling mode** — no webhook registration needed
+- Set `TELEGRAM_MODE=polling` in `.env` (default for dev)
+- Start backend and message the bot directly from Telegram app
+
 ### Remaining Work
-1. **Manual setup**: Register bot with BotFather, set env vars in production, call `setWebhook`
+1. **Production setup**: Set `TELEGRAM_MODE=webhook`, register with BotFather, set `TELEGRAM_WEBHOOK_URL`
 2. **Multilingual support**: Add KM and ZH translations for all bot message templates
-3. **Manual testing**: End-to-end testing with real Telegram app and drivers
