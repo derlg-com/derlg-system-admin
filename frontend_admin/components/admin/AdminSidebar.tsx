@@ -27,23 +27,60 @@ interface NavItem {
   label: string
   href: string
   icon: React.ComponentType<{ size?: number; className?: string }>
-  roles?: string[]
+  /**
+   * Admin roles permitted to open this route.
+   *
+   * These lists mirror the `@AdminRoles(...)` decorators on the backend
+   * controllers exactly. If they drift, the sidebar offers links that answer
+   * 403 — so treat the backend as the source of truth when changing either.
+   * SUPER_ADMIN bypasses every check server-side and is listed everywhere for
+   * clarity.
+   */
+  roles: AdminRoleName[]
 }
 
+type AdminRoleName =
+  | 'SUPER_ADMIN'
+  | 'OPERATIONS_MANAGER'
+  | 'FLEET_MANAGER'
+  | 'SUPPORT_AGENT'
+
+const ALL_ROLES: AdminRoleName[] = [
+  'SUPER_ADMIN',
+  'OPERATIONS_MANAGER',
+  'FLEET_MANAGER',
+  'SUPPORT_AGENT',
+]
+
 const navItems: NavItem[] = [
-  { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
+  // /v1/admin/dashboard — all four roles
+  { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard, roles: ALL_ROLES },
+  // /v1/admin/bookings
   { label: 'Bookings', href: '/admin/bookings', icon: CalendarCheck, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER', 'SUPPORT_AGENT'] },
+  // /v1/admin/drivers
   { label: 'Drivers', href: '/admin/drivers', icon: Car, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER', 'FLEET_MANAGER'] },
+  // /v1/admin/vehicles
   { label: 'Vehicles', href: '/admin/vehicles', icon: Truck, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER', 'FLEET_MANAGER'] },
+  // /v1/admin/hotels
   { label: 'Hotels', href: '/admin/hotels', icon: Hotel, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER'] },
+  // /v1/admin/guides
   { label: 'Tour Guides', href: '/admin/guides', icon: UserCheck, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER'] },
+  // /v1/admin/customers
   { label: 'Customers', href: '/admin/customers', icon: Users, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER', 'SUPPORT_AGENT'] },
+  // /v1/admin/emergency
   { label: 'Emergency', href: '/admin/emergency', icon: AlertTriangle, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER'] },
+  // /v1/admin/discounts
   { label: 'Discounts', href: '/admin/discounts', icon: Tag, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER'] },
+  // /v1/admin/analytics
   { label: 'Analytics', href: '/admin/analytics', icon: BarChart3, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER'] },
-  { label: 'Telegram', href: '/admin/telegram/broadcast', icon: MessageSquare, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER', 'FLEET_MANAGER'] },
+  // /v1/admin/telegram — FLEET_MANAGER was listed here before but the backend
+  // rejects it, which produced a visible link that always 403'd.
+  { label: 'Telegram', href: '/admin/telegram/broadcast', icon: MessageSquare, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER'] },
+  // /v1/admin/users
   { label: 'Admin Users', href: '/admin/users', icon: ShieldCheck, roles: ['SUPER_ADMIN'] },
+  // /v1/admin/audit-logs
   { label: 'Audit Logs', href: '/admin/audit-logs', icon: ScrollText, roles: ['SUPER_ADMIN'] },
+  // /v1/admin/ai-sessions
   { label: 'AI Monitoring', href: '/admin/ai-monitoring', icon: Bot, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER'] },
 ]
 
@@ -56,9 +93,13 @@ export function AdminSidebar({ onNavigate }: AdminSidebarProps) {
   const { user } = useAuthStore()
   const { sidebarCollapsed, toggleSidebar } = useUIStore()
 
-  const filteredNav = navItems.filter(
-    (item) => !item.roles || !user?.adminRole || item.roles.includes(user.adminRole),
-  )
+  // Hide, never disable. A user without a resolved adminRole sees nothing:
+  // the previous `|| !user?.adminRole` fallback showed the entire menu whenever
+  // the role had not loaded, which is the opposite of failing closed.
+  const adminRole = user?.adminRole as AdminRoleName | undefined
+  const filteredNav = adminRole
+    ? navItems.filter((item) => item.roles.includes(adminRole))
+    : []
 
   return (
     <div

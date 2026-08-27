@@ -1,49 +1,86 @@
-import axios, { AxiosInstance, AxiosError } from 'axios'
+import axios, { AxiosError, AxiosInstance } from 'axios'
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/v1'
+/**
+ * API client for the DerLg admin panel.
+ *
+ * Talks to the main NestJS backend (`backend/`), not a separate admin service.
+ * The admin API was merged into it, so every route below is served by the same
+ * app that serves the public site — one database, one auth model, one client.
+ *
+ * Default port is the backend's dev port. Override with NEXT_PUBLIC_API_URL.
+ */
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL
+  ? `${process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')}/v1`
+  : 'http://localhost:4007/v1'
 
 const api: AxiosInstance = axios.create({
   baseURL: BASE_URL,
+  // Sends the httpOnly `derlg_refresh` cookie so /auth/refresh works.
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 })
 
+export const ACCESS_TOKEN_STORAGE_KEY = 'admin_access_token'
+
 let isRefreshing = false
 let pendingRequests: Array<() => void> = []
 
-// Callback for notifying the auth store when tokens are refreshed
-let onTokenRefresh: ((token: string, user?: any) => void) | null = null
+let onTokenRefresh: ((token: string, user?: unknown) => void) | null = null
 
-export function setTokenRefreshCallback(cb: (token: string, user?: any) => void) {
+export function setTokenRefreshCallback(
+  cb: (token: string, user?: unknown) => void,
+) {
   onTokenRefresh = cb
 }
 
-// Unwrap the backend's { success, data, message } response envelope
+/**
+ * Unwraps the backend's response envelope.
+ *
+ * `TransformInterceptor` wraps every success as `{ success: true, data }`, so
+ * callers receive `data` directly. Errors keep their envelope and are surfaced
+ * through the rejection path below.
+ */
 api.interceptors.response.use((response) => {
+  const body = response.data
   if (
-    response.data &&
-    typeof response.data === 'object' &&
-    'success' in response.data &&
-    'data' in response.data
+    body &&
+    typeof body === 'object' &&
+    'success' in body &&
+    'data' in body &&
+    (body as { success: unknown }).success !== false
   ) {
-    response.data = response.data.data
+    response.data = (body as { data: unknown }).data
   }
   return response
 })
 
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('admin_access_token')
+    const token = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
     if (token) config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
 
+/** Human-readable message from `AllExceptionsFilter`'s error shape. */
+export function extractErrorMessage(error: unknown, fallback = 'Request failed'): string {
+  const axiosError = error as AxiosError<{
+    message?: string | string[]
+    error?: { message?: string | string[]; code?: string }
+  }>
+  const body = axiosError?.response?.data
+  const raw = body?.error?.message ?? body?.message
+  if (Array.isArray(raw)) return raw.join(', ')
+  if (typeof raw === 'string' && raw.trim() !== '') return raw
+  return fallback
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const original = error.config as any
-    if (error.response?.status === 401 && !original._retry) {
+    const original = error.config as (typeof error.config & { _retry?: boolean }) | undefined
+
+    if (error.response?.status === 401 && original && !original._retry) {
       if (isRefreshing) {
         return new Promise((resolve) => {
           pendingRequests.push(() => resolve(api(original)))
@@ -52,187 +89,224 @@ api.interceptors.response.use(
       original._retry = true
       isRefreshing = true
       try {
-        const res = await axios.post(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true })
-        const tokenData = res.data?.data ?? res.data
-        const { accessToken, user } = tokenData
-        localStorage.setItem('admin_access_token', accessToken)
-        // Notify auth store about the refreshed token + user
-        onTokenRefresh?.(accessToken, user)
+        // Plain axios, not `api`: the instance's own 401 handler would recurse.
+        const res = await axios.post(
+          `${BASE_URL}/auth/refresh`,
+          {},
+          { withCredentials: true },
+        )
+        // /auth/refresh now returns { accessToken, user }. It previously
+        // returned only accessToken, so this destructure silently yielded
+        // undefined and the auth store lost the user on every refresh.
+        const payload = (res.data?.data ?? res.data) as {
+          accessToken: string
+          user?: unknown
+        }
+        localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, payload.accessToken)
+        onTokenRefresh?.(payload.accessToken, payload.user)
+
         pendingRequests.forEach((cb) => cb())
         pendingRequests = []
         isRefreshing = false
-        original.headers.Authorization = `Bearer ${accessToken}`
+
+        original.headers.Authorization = `Bearer ${payload.accessToken}`
         return api(original)
       } catch {
         isRefreshing = false
         pendingRequests = []
-        localStorage.removeItem('admin_access_token')
+        localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY)
         onTokenRefresh?.('', null)
         if (typeof window !== 'undefined') window.location.href = '/login'
       }
     }
-    // On 403: permission denied — could show toast here if needed
-    if (error.response?.status === 403) {
-      // Let calling code handle this, but we could log it
-    }
+
     return Promise.reject(error)
   },
 )
 
 export default api
 
-// Auth
+// ---------------------------------------------------------------------------
+// Auth — served by the backend's own auth module, not an admin-specific one
+// ---------------------------------------------------------------------------
 export const authApi = {
   login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }),
   logout: () => api.post('/auth/logout'),
+  /** Returns the user plus `adminRole` and `permissions` from admin_users. */
   me: () => api.get('/auth/me'),
 }
 
-// Admin Dashboard
+// ---------------------------------------------------------------------------
+// Admin — all under /v1/admin/*
+// ---------------------------------------------------------------------------
+type Params = Record<string, unknown>
+
 export const dashboardApi = {
   getOverview: () => api.get('/admin/dashboard'),
 }
 
-// Admin Drivers
 export const driversApi = {
-  list: (params?: Record<string, any>) => api.get('/admin/drivers', { params }),
+  list: (params?: Params) => api.get('/admin/drivers', { params }),
   get: (id: string) => api.get(`/admin/drivers/${id}`),
-  create: (data: any) => api.post('/admin/drivers', data),
-  update: (id: string, data: any) => api.patch(`/admin/drivers/${id}`, data),
+  create: (data: unknown) => api.post('/admin/drivers', data),
+  update: (id: string, data: unknown) => api.patch(`/admin/drivers/${id}`, data),
   delete: (id: string) => api.delete(`/admin/drivers/${id}`),
 }
 
-// Admin Vehicles
 export const vehiclesApi = {
-  list: (params?: Record<string, any>) => api.get('/admin/vehicles', { params }),
+  list: (params?: Params) => api.get('/admin/vehicles', { params }),
   get: (id: string) => api.get(`/admin/vehicles/${id}`),
-  create: (data: any) => api.post('/admin/vehicles', data),
-  update: (id: string, data: any) => api.patch(`/admin/vehicles/${id}`, data),
+  create: (data: unknown) => api.post('/admin/vehicles', data),
+  update: (id: string, data: unknown) => api.patch(`/admin/vehicles/${id}`, data),
   delete: (id: string) => api.delete(`/admin/vehicles/${id}`),
 }
 
-// Admin Maintenance
 export const maintenanceApi = {
-  list: (params?: Record<string, any>) => api.get('/admin/maintenance', { params }),
-  create: (data: any) => api.post('/admin/maintenance', data),
-  update: (id: string, data: any) => api.patch(`/admin/maintenance/${id}`, data),
+  list: (params?: Params) => api.get('/admin/maintenance', { params }),
+  create: (data: unknown) => api.post('/admin/maintenance', data),
+  update: (id: string, data: unknown) =>
+    api.patch(`/admin/maintenance/${id}`, data),
 }
 
-// Admin Bookings
 export const bookingsApi = {
-  list: (params?: Record<string, any>) => api.get('/admin/bookings', { params }),
+  list: (params?: Params) => api.get('/admin/bookings', { params }),
   get: (id: string) => api.get(`/admin/bookings/${id}`),
-  update: (id: string, data: any) => api.patch(`/admin/bookings/${id}`, data),
-  cancel: (id: string) => api.post(`/bookings/${id}/cancel`),
+  update: (id: string, data: unknown) => api.patch(`/admin/bookings/${id}`, data),
+  /** Cancellation goes through the shared booking engine, refunds included. */
+  cancel: (id: string, reason?: string) =>
+    api.post(`/bookings/${id}/cancel`, reason ? { reason } : {}),
 }
 
-// AI Sessions
 export const aiSessionsApi = {
-  getBookings: (params?: Record<string, any>) => api.get('/admin/ai-sessions/bookings', { params }),
+  getBookings: (params?: Params) =>
+    api.get('/admin/ai-sessions/bookings', { params }),
   getSession: (sessionId: string) => api.get(`/admin/ai-sessions/${sessionId}`),
-  getSuccessRate: (params?: Record<string, any>) => api.get('/admin/ai-sessions/metrics/success-rate', { params }),
-  getPerformance: (params?: Record<string, any>) => api.get('/admin/ai-sessions/metrics/performance', { params }),
+  getSuccessRate: (params?: Params) =>
+    api.get('/admin/ai-sessions/metrics/success-rate', { params }),
+  getPerformance: (params?: Params) =>
+    api.get('/admin/ai-sessions/metrics/performance', { params }),
 }
 
-// Admin Assignments
 export const assignmentsApi = {
-  create: (data: any) => api.post('/admin/assignments', data),
+  list: (params?: Params) => api.get('/admin/assignments', { params }),
+  create: (data: unknown) => api.post('/admin/assignments', data),
   complete: (id: string) => api.patch(`/admin/assignments/${id}/complete`),
 }
 
-// Admin Hotels
 export const hotelsApi = {
-  list: (params?: Record<string, any>) => api.get('/admin/hotels', { params }),
+  list: (params?: Params) => api.get('/admin/hotels', { params }),
   get: (id: string) => api.get(`/admin/hotels/${id}`),
-  create: (data: any) => api.post('/admin/hotels', data),
-  update: (id: string, data: any) => api.patch(`/admin/hotels/${id}`, data),
-  delete: (id: string) => api.delete(`/admin/hotels/${id}`),
+  create: (data: unknown) => api.post('/admin/hotels', data),
+  update: (id: string, data: unknown) => api.patch(`/admin/hotels/${id}`, data),
   getRooms: (id: string) => api.get(`/admin/hotels/${id}/rooms`),
-  createRoom: (id: string, data: any) => api.post(`/admin/hotels/${id}/rooms`, data),
-  updateRoom: (hotelId: string, roomId: string, data: any) =>
+  createRoom: (id: string, data: unknown) =>
+    api.post(`/admin/hotels/${id}/rooms`, data),
+  updateRoom: (hotelId: string, roomId: string, data: unknown) =>
     api.patch(`/admin/hotels/${hotelId}/rooms/${roomId}`, data),
-  deleteRoom: (hotelId: string, roomId: string) =>
-    api.delete(`/admin/hotels/${hotelId}/rooms/${roomId}`),
+  /** Interval-overlap availability; dates are ISO yyyy-mm-dd. */
+  getRoomAvailability: (roomId: string, startDate: string, endDate: string) =>
+    api.get(`/admin/hotels/rooms/${roomId}/availability`, {
+      params: { startDate, endDate },
+    }),
 }
 
-// Admin Guides
 export const guidesApi = {
-  list: (params?: Record<string, any>) => api.get('/admin/guides', { params }),
+  list: (params?: Params) => api.get('/admin/guides', { params }),
   get: (id: string) => api.get(`/admin/guides/${id}`),
-  create: (data: any) => api.post('/admin/guides', data),
-  update: (id: string, data: any) => api.patch(`/admin/guides/${id}`, data),
-  delete: (id: string) => api.delete(`/admin/guides/${id}`),
+  create: (data: unknown) => api.post('/admin/guides', data),
+  update: (id: string, data: unknown) => api.patch(`/admin/guides/${id}`, data),
 }
 
-// Admin Emergency
 export const emergencyApi = {
-  list: (params?: Record<string, any>) => api.get('/admin/emergency', { params }),
+  list: (params?: Params) => api.get('/admin/emergency', { params }),
   get: (id: string) => api.get(`/admin/emergency/${id}`),
-  update: (id: string, data: any) => api.patch(`/admin/emergency/${id}`, data),
+  update: (id: string, data: unknown) => api.patch(`/admin/emergency/${id}`, data),
 }
 
-// Admin Customers
 export const customersApi = {
-  list: (params?: Record<string, any>) => api.get('/admin/customers', { params }),
+  list: (params?: Params) => api.get('/admin/customers', { params }),
   get: (id: string) => api.get(`/admin/customers/${id}`),
-  adjustLoyalty: (data: any) => api.post('/admin/loyalty/adjust', data),
+  getReviews: (id: string) => api.get(`/admin/customers/${id}/reviews`),
+  adjustLoyalty: (data: unknown) => api.post('/admin/loyalty/adjust', data),
 }
 
-// Admin Discounts
 export const discountsApi = {
-  list: (params?: Record<string, any>) => api.get('/admin/discounts', { params }),
-  create: (data: any) => api.post('/admin/discounts', data),
-  update: (id: string, data: any) => api.patch(`/admin/discounts/${id}`, data),
-  getStudentVerifications: (params?: Record<string, any>) =>
+  list: (params?: Params) => api.get('/admin/discounts', { params }),
+  create: (data: unknown) => api.post('/admin/discounts', data),
+  update: (id: string, data: unknown) => api.patch(`/admin/discounts/${id}`, data),
+  getStudentVerifications: (params?: Params) =>
     api.get('/admin/student-verifications', { params }),
-  reviewStudentVerification: (id: string, data: any) =>
+  reviewStudentVerification: (id: string, data: unknown) =>
     api.patch(`/admin/student-verifications/${id}`, data),
 }
 
-// Admin Analytics
 export const analyticsApi = {
-  getRevenue: (params?: Record<string, any>) => api.get('/admin/analytics/revenue', { params }),
-  getBookings: (params?: Record<string, any>) => api.get('/admin/analytics/bookings', { params }),
-  getDrivers: (params?: Record<string, any>) => api.get('/admin/analytics/drivers', { params }),
-  getPopularDestinations: (params?: Record<string, any>) => api.get('/admin/analytics/destinations', { params }),
-  getHotelOccupancy: (params?: Record<string, any>) => api.get('/admin/analytics/hotels', { params }),
-  getGuideUtilization: (params?: Record<string, any>) => api.get('/admin/analytics/guides', { params }),
-  export: (params?: Record<string, any>) => api.get('/admin/analytics/export', { params, responseType: 'blob' }),
+  getRevenue: (params?: Params) => api.get('/admin/analytics/revenue', { params }),
+  getBookings: (params?: Params) =>
+    api.get('/admin/analytics/bookings', { params }),
+  getDrivers: (params?: Params) => api.get('/admin/analytics/drivers', { params }),
+  getPopularDestinations: (params?: Params) =>
+    api.get('/admin/analytics/destinations', { params }),
+  getHotelOccupancy: (params?: Params) =>
+    api.get('/admin/analytics/hotels', { params }),
+  getGuideUtilization: (params?: Params) =>
+    api.get('/admin/analytics/guides', { params }),
+  export: (params?: Params) =>
+    api.get('/admin/analytics/export', { params, responseType: 'blob' }),
 }
 
-// Admin Users
 export const adminUsersApi = {
-  list: (params?: Record<string, any>) => api.get('/admin/users', { params }),
-  create: (data: any) => api.post('/admin/users', data),
-  update: (id: string, data: any) => api.patch(`/admin/users/${id}`, data),
+  list: (params?: Params) => api.get('/admin/users', { params }),
+  create: (data: unknown) => api.post('/admin/users', data),
+  update: (id: string, data: unknown) => api.patch(`/admin/users/${id}`, data),
 }
 
-// Admin Audit Logs
 export const auditLogsApi = {
-  list: (params?: Record<string, any>) => api.get('/admin/audit-logs', { params }),
-  export: (params?: Record<string, any>) =>
+  list: (params?: Params) => api.get('/admin/audit-logs', { params }),
+  export: (params?: Params) =>
     api.get('/admin/audit-logs/export', { params, responseType: 'blob' }),
 }
 
-// Telegram Admin
+/**
+ * Telegram admin operations.
+ *
+ * These now live under /v1/admin/telegram/* behind the admin guards. Broadcast
+ * previously sat on the unauthenticated driver-facing controller, and support
+ * tickets and analytics had no backend at all.
+ */
 export const telegramApi = {
-  broadcast: (data: { message: string; image_url?: string; target_filter: Record<string, any> }) =>
-    api.post('/admin/telegram/broadcast', data),
-  getBroadcastHistory: (params?: Record<string, any>) =>
+  broadcast: (data: {
+    message: string
+    imageUrl?: string
+    targetFilter?: { status?: string; province?: string }
+  }) => api.post('/admin/telegram/broadcast', data),
+  getBroadcastHistory: (params?: Params) =>
     api.get('/admin/telegram/broadcasts', { params }),
-  getAnalytics: (params?: Record<string, any>) =>
+  getAnalytics: (params?: Params) =>
     api.get('/admin/telegram/analytics', { params }),
-  getSupportTickets: (params?: Record<string, any>) =>
+  getSupportTickets: (params?: Params) =>
     api.get('/admin/telegram/support-tickets', { params }),
-  updateTicket: (id: string, data: any) =>
+  updateTicket: (id: string, data: unknown) =>
     api.patch(`/admin/telegram/support-tickets/${id}`, data),
   assignTicket: (id: string, assignedTo: string) =>
-    api.patch(`/admin/telegram/support-tickets/${id}/assign`, { assigned_to: assignedTo }),
+    api.patch(`/admin/telegram/support-tickets/${id}/assign`, { assignedTo }),
 }
 
-// Upload / Presigned URL
+/**
+ * Presigned uploads straight to MinIO.
+ *
+ * The browser PUTs to the returned URL; it never holds MinIO credentials.
+ */
 export const uploadApi = {
-  getPresignedUrl: (fileName: string, contentType: string) =>
-    api.post('/admin/upload/presigned', { fileName, contentType }),
+  getPresignedUrl: (fileName: string, contentType?: string, bucket?: string) =>
+    api.post<{ url: string; bucket: string; objectKey: string; expiresIn: number }>(
+      '/admin/upload/presigned',
+      { fileName, contentType, bucket },
+    ),
+  getPresignedDownload: (bucket: string, objectKey: string) =>
+    api.post<{ url: string; expiresIn: number }>(
+      '/admin/storage/presigned-download',
+      { bucket, objectKey },
+    ),
 }
