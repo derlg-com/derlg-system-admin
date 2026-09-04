@@ -28,32 +28,64 @@ interface DriverDetailViewProps {
   driverId: string
 }
 
+/** Matches AssignmentResponseDto (camelCase). */
 interface Assignment {
   id: string
-  booking_id: string
+  bookingId: string
   status: string
-  assignment_timestamp: string
-  response_timestamp?: string
-  trip_start_time?: string
-  completion_timestamp?: string
-  rejection_reason?: string
-  telegram_notified: boolean
+  assignmentTimestamp: string
+  responseTimestamp?: string
+  tripStartTime?: string
+  completionTimestamp?: string
+  rejectionReason?: string
+  telegramNotified: boolean
+}
+
+/** Matches DriverResponseDto (camelCase). The detail endpoint returns
+ *  `assignmentCount`, not the assignment array — see the note below. */
+interface Driver {
+  id: string
+  driverName: string
+  driverId: string
+  telegramId?: string | null
+  phone: string
+  vehicleId?: string | null
+  status: 'AVAILABLE' | 'BUSY' | 'OFFLINE'
+  preferredLanguage?: string
+  lastStatusUpdate?: string
+  lastTelegramActivity?: string | null
+  createdAt?: string
+  updatedAt?: string
+  vehicle?: { id: string; name: string; licensePlate?: string | null } | null
+  assignmentCount: number
+  // The relation exists on the model but the detail endpoint only returns the
+  // count; typed optional so the history tab degrades to empty rather than crash.
+  assignments?: Assignment[]
+}
+
+/** Subset of VehicleResponseDto that this view reads. */
+interface AssignedVehicle {
+  id: string
+  name: string
+  vehicleType: string
+  capacity: number
+  licensePlate?: string | null
 }
 
 export function DriverDetailView({ driverId }: DriverDetailViewProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<'profile' | 'assignments'>('profile')
 
-  const { data: driver, isLoading: driverLoading } = useQuery({
+  const { data: driver, isLoading: driverLoading } = useQuery<Driver>({
     queryKey: ['admin-driver', driverId],
     queryFn: () => driversApi.get(driverId).then((r) => r.data),
     staleTime: 30000,
   })
 
-  const { data: vehicle } = useQuery({
-    queryKey: ['admin-vehicle', driver?.vehicle_id],
-    queryFn: () => vehiclesApi.get(driver.vehicle_id).then((r) => r.data),
-    enabled: !!driver?.vehicle_id,
+  const { data: vehicle } = useQuery<AssignedVehicle>({
+    queryKey: ['admin-vehicle', driver?.vehicleId],
+    queryFn: () => vehiclesApi.get(driver!.vehicleId!).then((r) => r.data),
+    enabled: !!driver?.vehicleId,
     staleTime: 60000,
   })
 
@@ -84,13 +116,15 @@ export function DriverDetailView({ driverId }: DriverDetailViewProps) {
     )
   }
 
-  const assignments: Assignment[] = driver.assignments || []
-  const totalTrips = driver.total_trips ?? assignments.filter((a) => a.status === 'COMPLETED').length
-  const averageRating = driver.average_rating ?? 0
-  const isTelegramRegistered = !!driver.telegram_id
+  const assignments: Assignment[] = driver.assignments ?? []
+  // Backend detail response exposes only the assignment count, not the list.
+  const totalTrips = driver.assignmentCount ?? 0
+  // No rating field exists on the driver contract, so this always renders N/A.
+  const averageRating = 0
+  const isTelegramRegistered = !!driver.telegramId
 
   const assignmentColumns = [
-    { key: 'booking_id', label: 'Booking', sortable: true },
+    { key: 'bookingId', label: 'Booking', sortable: true },
     {
       key: 'status',
       label: 'Status',
@@ -116,18 +150,18 @@ export function DriverDetailView({ driverId }: DriverDetailViewProps) {
       ),
     },
     {
-      key: 'assignment_timestamp',
+      key: 'assignmentTimestamp',
       label: 'Assigned',
       render: (r: Assignment) =>
-        r.assignment_timestamp
-          ? formatDistanceToNow(new Date(r.assignment_timestamp), { addSuffix: true })
+        r.assignmentTimestamp
+          ? formatDistanceToNow(new Date(r.assignmentTimestamp), { addSuffix: true })
           : '—',
     },
     {
-      key: 'telegram_notified',
+      key: 'telegramNotified',
       label: 'Notified',
       render: (r: Assignment) =>
-        r.telegram_notified ? (
+        r.telegramNotified ? (
           <span className="inline-flex items-center gap-1 text-xs text-emerald-400">
             <MessageCircle className="size-3" /> Yes
           </span>
@@ -136,9 +170,9 @@ export function DriverDetailView({ driverId }: DriverDetailViewProps) {
         ),
     },
     {
-      key: 'rejection_reason',
+      key: 'rejectionReason',
       label: 'Notes',
-      render: (r: Assignment) => r.rejection_reason || '—',
+      render: (r: Assignment) => r.rejectionReason || '—',
     },
   ]
 
@@ -150,9 +184,9 @@ export function DriverDetailView({ driverId }: DriverDetailViewProps) {
           <ArrowLeft className="size-4" />
         </Button>
         <div>
-          <h1 className="text-xl font-bold">{driver.driver_name}</h1>
+          <h1 className="text-xl font-bold">{driver.driverName}</h1>
           <p className="text-sm text-muted-foreground">
-            {driver.driver_id} ·{' '}
+            {driver.driverId} ·{' '}
             <DriverStatusBadge status={driver.status} pulsing />
           </p>
         </div>
@@ -217,7 +251,7 @@ export function DriverDetailView({ driverId }: DriverDetailViewProps) {
           className={`tab ${activeTab === 'assignments' ? 'active' : ''}`}
           onClick={() => setActiveTab('assignments')}
         >
-          Assignment History ({assignments.length})
+          Assignment History ({driver.assignmentCount ?? assignments.length})
         </button>
       </div>
 
@@ -238,7 +272,7 @@ export function DriverDetailView({ driverId }: DriverDetailViewProps) {
                 <MessageCircle className="size-4 text-muted-foreground" />
                 <div>
                   <p className="text-sm text-muted-foreground">Telegram ID</p>
-                  <p className="text-sm font-medium">{driver.telegram_id || 'Not registered'}</p>
+                  <p className="text-sm font-medium">{driver.telegramId || 'Not registered'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -246,7 +280,7 @@ export function DriverDetailView({ driverId }: DriverDetailViewProps) {
                 <div>
                   <p className="text-sm text-muted-foreground">Member Since</p>
                   <p className="text-sm font-medium">
-                    {driver.created_at ? format(new Date(driver.created_at), 'PPP') : '—'}
+                    {driver.createdAt ? format(new Date(driver.createdAt), 'PPP') : '—'}
                   </p>
                 </div>
               </div>
@@ -255,19 +289,19 @@ export function DriverDetailView({ driverId }: DriverDetailViewProps) {
                 <div>
                   <p className="text-sm text-muted-foreground">Last Status Update</p>
                   <p className="text-sm font-medium">
-                    {driver.last_status_update
-                      ? formatDistanceToNow(new Date(driver.last_status_update), { addSuffix: true })
+                    {driver.lastStatusUpdate
+                      ? formatDistanceToNow(new Date(driver.lastStatusUpdate), { addSuffix: true })
                       : '—'}
                   </p>
                 </div>
               </div>
-              {driver.last_telegram_activity && (
+              {driver.lastTelegramActivity && (
                 <div className="flex items-center gap-3">
                   <MessageCircle className="size-4 text-emerald-400" />
                   <div>
                     <p className="text-sm text-muted-foreground">Last Telegram Activity</p>
                     <p className="text-sm font-medium">
-                      {formatDistanceToNow(new Date(driver.last_telegram_activity), {
+                      {formatDistanceToNow(new Date(driver.lastTelegramActivity), {
                         addSuffix: true,
                       })}
                     </p>
@@ -293,7 +327,7 @@ export function DriverDetailView({ driverId }: DriverDetailViewProps) {
                   <Mail className="size-4 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Category</p>
-                    <p className="text-sm font-medium">{vehicle.category}</p>
+                    <p className="text-sm font-medium">{vehicle.vehicleType}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -306,8 +340,9 @@ export function DriverDetailView({ driverId }: DriverDetailViewProps) {
                 <div className="flex items-center gap-3">
                   <Star className="size-4 text-muted-foreground" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Tier</p>
-                    <p className="text-sm font-medium">{vehicle.tier}</p>
+                    {/* Vehicle detail response has no `tier`; show the plate, which it does return. */}
+                    <p className="text-sm text-muted-foreground">License Plate</p>
+                    <p className="text-sm font-medium">{vehicle.licensePlate || '—'}</p>
                   </div>
                 </div>
               </div>

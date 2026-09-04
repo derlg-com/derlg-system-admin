@@ -16,10 +16,6 @@ import {
   AlertCircle,
   Edit3,
   XCircle,
-  Loader2,
-  Bot,
-  CheckCircle2,
-  Clock,
 } from 'lucide-react'
 import { bookingsApi } from '@/lib/api'
 import { getApiErrorMessage } from '@/lib/utils'
@@ -37,10 +33,9 @@ interface BookingDetailViewProps {
 
 interface PaymentRecord {
   id: string
-  payment_method?: string
   status?: string
-  created_at?: string | null
-  amount_usd?: number | string | null
+  paidAt?: string | null
+  amountUsd?: number | string | null
 }
 
 export function BookingDetailView({ bookingId }: BookingDetailViewProps) {
@@ -57,10 +52,13 @@ export function BookingDetailView({ bookingId }: BookingDetailViewProps) {
 
   const updateMutation = useMutation({
     mutationFn: (data: BookingModificationData) =>
+      // The backend UpdateBookingDto (forbidNonWhitelisted) accepts only
+      // startDate/endDate/passengerCount; the old travel_date/end_date/num_*
+      // payload was rejected with 400.
       bookingsApi.update(bookingId, {
-        ...data,
-        travel_date: format(data.travel_date, 'yyyy-MM-dd'),
-        end_date: data.end_date ? format(data.end_date, 'yyyy-MM-dd') : undefined,
+        startDate: format(data.travel_date, 'yyyy-MM-dd'),
+        endDate: data.end_date ? format(data.end_date, 'yyyy-MM-dd') : undefined,
+        passengerCount: data.num_adults + data.num_children,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-booking', bookingId] })
@@ -112,20 +110,36 @@ export function BookingDetailView({ bookingId }: BookingDetailViewProps) {
   }
 
   const user = booking.user || {}
-  const assignment = booking.assignment || null
+  const assignment = booking.driverAssignment || null
   const payments: PaymentRecord[] = booking.payments || []
   const trip = booking.trip || null
   const hotel = booking.hotel || null
   const vehicle = booking.vehicle || null
   const guide = booking.guide || null
-  const isEditable = ['RESERVED', 'CONFIRMED'].includes(booking.status)
+  const isEditable = ['hold', 'pending_payment', 'confirmed'].includes(booking.status)
+
+  // Booking type and the vehicle live on the line items, not on the booking, so
+  // derive them defensively — this both stops booking.booking_type.replace(...)
+  // from throwing and lets the driver panel show for transport bookings.
+  const bookingItems: Array<{ bookingType: string; vehicleId?: string | null }> =
+    Array.isArray(booking.items) ? booking.items : []
+  const itemTypes = Array.from(new Set(bookingItems.map((i) => i.bookingType)))
+  const bookingTypeLabel = itemTypes.length
+    ? itemTypes.map((t) => t.replace(/_/g, ' ')).join(', ')
+    : '—'
+  const needsDriver = itemTypes.includes('transportation')
+  const transportVehicleId =
+    bookingItems.find((i) => i.bookingType === 'transportation')?.vehicleId ?? undefined
 
   const statusColors: Record<string, { text: string; bg: string }> = {
-    RESERVED: { text: 'var(--warning)', bg: 'var(--warning-muted)' },
-    CONFIRMED: { text: 'var(--success)', bg: 'var(--success-muted)' },
-    COMPLETED: { text: 'var(--info)', bg: 'var(--info-muted)' },
-    CANCELLED: { text: 'var(--danger)', bg: 'var(--danger-muted)' },
-    REFUNDED: { text: 'var(--text-muted)', bg: 'var(--bg-elevated)' },
+    hold: { text: 'var(--warning)', bg: 'var(--warning-muted)' },
+    pending_payment: { text: 'var(--warning)', bg: 'var(--warning-muted)' },
+    confirmed: { text: 'var(--success)', bg: 'var(--success-muted)' },
+    completed: { text: 'var(--info)', bg: 'var(--info-muted)' },
+    cancelled: { text: 'var(--danger)', bg: 'var(--danger-muted)' },
+    expired: { text: 'var(--text-muted)', bg: 'var(--bg-elevated)' },
+    payment_failed: { text: 'var(--danger)', bg: 'var(--danger-muted)' },
+    no_show: { text: 'var(--text-muted)', bg: 'var(--bg-elevated)' },
   }
 
   return (
@@ -138,7 +152,7 @@ export function BookingDetailView({ bookingId }: BookingDetailViewProps) {
           </Button>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold">{booking.booking_ref}</h1>
+              <h1 className="text-xl font-bold">{booking.reference}</h1>
               {(() => {
                 const cfg = statusColors[booking.status] || { text: 'var(--text-muted)', bg: 'var(--bg-elevated)' }
                 return (
@@ -146,22 +160,14 @@ export function BookingDetailView({ bookingId }: BookingDetailViewProps) {
                     className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
                     style={{ color: cfg.text, background: cfg.bg }}
                   >
-                    {booking.status}
+                    {booking.status.replace(/_/g, ' ')}
                   </span>
                 )
               })()}
-              {booking.ai_assisted && (
-                <span
-                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
-                  style={{ background: 'var(--brand-primary-muted)', color: 'var(--brand-primary)' }}
-                >
-                  <Bot className="size-3" /> AI
-                </span>
-              )}
             </div>
             <p className="text-sm text-muted-foreground">
-              {booking.booking_type.replace(/_/g, ' ')} · Created{' '}
-              {booking.created_at ? format(parseISO(booking.created_at), 'PPP') : '—'}
+              {bookingTypeLabel} · Created{' '}
+              {booking.createdAt ? format(parseISO(booking.createdAt), 'PPP') : '—'}
             </p>
           </div>
         </div>
@@ -192,16 +198,16 @@ export function BookingDetailView({ bookingId }: BookingDetailViewProps) {
                 <div>
                   <p className="text-xs text-muted-foreground">Travel Date</p>
                   <p className="text-sm font-medium">
-                    {booking.travel_date ? format(parseISO(booking.travel_date), 'PPP') : '—'}
+                    {booking.startDate ? format(parseISO(booking.startDate), 'PPP') : '—'}
                   </p>
                 </div>
               </div>
-              {booking.end_date && (
+              {booking.endDate && (
                 <div className="flex items-center gap-3">
                   <Calendar className="size-4 text-muted-foreground" />
                   <div>
                     <p className="text-xs text-muted-foreground">End Date</p>
-                    <p className="text-sm font-medium">{format(parseISO(booking.end_date), 'PPP')}</p>
+                    <p className="text-sm font-medium">{format(parseISO(booking.endDate), 'PPP')}</p>
                   </div>
                 </div>
               )}
@@ -209,17 +215,14 @@ export function BookingDetailView({ bookingId }: BookingDetailViewProps) {
                 <Users className="size-4 text-muted-foreground" />
                 <div>
                   <p className="text-xs text-muted-foreground">Passengers</p>
-                  <p className="text-sm font-medium">
-                    {booking.num_adults} adults
-                    {booking.num_children > 0 && `, ${booking.num_children} children`}
-                  </p>
+                  <p className="text-sm font-medium">{booking.passengerCount} passengers</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <DollarSign className="size-4 text-muted-foreground" />
                 <div>
                   <p className="text-xs text-muted-foreground">Total</p>
-                  <p className="text-sm font-medium">${Number(booking.total_usd).toFixed(2)}</p>
+                  <p className="text-sm font-medium">${Number(booking.totalUsd).toFixed(2)}</p>
                 </div>
               </div>
             </div>
@@ -300,15 +303,13 @@ export function BookingDetailView({ bookingId }: BookingDetailViewProps) {
                     <div className="flex items-center gap-3">
                       <CreditCard className="size-4 text-muted-foreground" />
                       <div>
-                        <p className="text-sm font-medium">
-                          {p.payment_method} · {p.status}
-                        </p>
+                        <p className="text-sm font-medium">{p.status}</p>
                         <p className="text-xs text-muted-foreground">
-                          {p.created_at ? format(parseISO(p.created_at), 'PPP') : '—'}
+                          {p.paidAt ? format(parseISO(p.paidAt), 'PPP') : '—'}
                         </p>
                       </div>
                     </div>
-                    <span className="text-sm font-medium">${Number(p.amount_usd).toFixed(2)}</span>
+                    <span className="text-sm font-medium">${Number(p.amountUsd).toFixed(2)}</span>
                   </div>
                 ))}
               </div>
@@ -326,7 +327,7 @@ export function BookingDetailView({ bookingId }: BookingDetailViewProps) {
                 <User className="size-4 text-muted-foreground" />
                 <div>
                   <p className="text-xs text-muted-foreground">Name</p>
-                  <p className="text-sm font-medium">{user.name || '—'}</p>
+                  <p className="text-sm font-medium">{user.fullName || '—'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -347,11 +348,11 @@ export function BookingDetailView({ bookingId }: BookingDetailViewProps) {
           </div>
 
           {/* Driver assignment */}
-          {booking.booking_type === 'TRANSPORT_ONLY' || booking.booking_type === 'PACKAGE' ? (
+          {needsDriver ? (
             <DriverAssignmentPanel
               bookingId={bookingId}
-              vehicleId={vehicle?.id}
-              passengerCount={(booking.num_adults || 0) + (booking.num_children || 0)}
+              vehicleId={transportVehicleId}
+              passengerCount={booking.passengerCount || 0}
               currentAssignment={assignment}
               onAssigned={() => qc.invalidateQueries({ queryKey: ['admin-booking', bookingId] })}
             />
@@ -363,19 +364,19 @@ export function BookingDetailView({ bookingId }: BookingDetailViewProps) {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span>${Number(booking.subtotal_usd || 0).toFixed(2)}</span>
+                <span>${Number(booking.subtotalUsd || 0).toFixed(2)}</span>
               </div>
-              {booking.discount_amount_usd > 0 && (
+              {booking.discountUsd > 0 && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Discount</span>
                   <span className="text-emerald-400">
-                    -${Number(booking.discount_amount_usd).toFixed(2)}
+                    -${Number(booking.discountUsd).toFixed(2)}
                   </span>
                 </div>
               )}
               <div className="border-t border-border-default pt-2 flex justify-between font-medium">
                 <span>Total</span>
-                <span>${Number(booking.total_usd || 0).toFixed(2)}</span>
+                <span>${Number(booking.totalUsd || 0).toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -392,10 +393,12 @@ export function BookingDetailView({ bookingId }: BookingDetailViewProps) {
       >
         <BookingModificationForm
           defaultValues={{
-            travel_date: booking.travel_date ? parseISO(booking.travel_date) : new Date(),
-            end_date: booking.end_date ? parseISO(booking.end_date) : undefined,
-            num_adults: booking.num_adults || 1,
-            num_children: booking.num_children || 0,
+            // The form's own field names are unchanged; only the source booking
+            // fields are corrected (startDate/endDate/passengerCount).
+            travel_date: booking.startDate ? parseISO(booking.startDate) : new Date(),
+            end_date: booking.endDate ? parseISO(booking.endDate) : undefined,
+            num_adults: booking.passengerCount || 1,
+            num_children: 0,
             customizations: booking.customizations || '',
           }}
           onSubmit={(data) => updateMutation.mutate(data)}
@@ -408,7 +411,7 @@ export function BookingDetailView({ bookingId }: BookingDetailViewProps) {
       <ConfirmDialog
         open={showCancel}
         title="Cancel Booking"
-        message={`Are you sure you want to cancel booking ${booking.booking_ref}? This will process a refund if payment was made.`}
+        message={`Are you sure you want to cancel booking ${booking.reference}? This will process a refund if payment was made.`}
         onConfirm={() => cancelMutation.mutate()}
         onCancel={() => setShowCancel(false)}
         loading={cancelMutation.isPending}

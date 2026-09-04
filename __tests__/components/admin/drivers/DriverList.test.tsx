@@ -5,21 +5,38 @@ import { DriverList } from '@/components/admin/drivers/DriverList'
 import * as api from '@/lib/api'
 import userEvent from '@testing-library/user-event'
 
-// Mock the API module
-jest.mock('@/lib/api', () => ({
-  driversApi: {
-    list: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-  },
-  vehiclesApi: {
-    list: jest.fn().mockResolvedValue({ data: [
-      { id: 'veh-1', name: 'Toyota Camry', category: 'VAN' },
-      { id: 'veh-2', name: 'Honda Civic', category: 'VAN' },
-    ]}),
-  },
-}))
+// Mock the API module.
+//
+// `requireActual` keeps the real `unwrapList` — the component pipes every list
+// response through `driversApi.list(params).then(unwrapList<Driver>)`, so a stub
+// that omitted it would turn `.then(unwrapList)` into `.then(undefined)` and the
+// data would never unwrap into `{ items, meta }`.
+//
+// `driversApi.delete` is gone: soft-delete is now `deactivate` (a PATCH), because
+// assignment/booking history references the driver row.
+jest.mock('@/lib/api', () => {
+  const actual = jest.requireActual('@/lib/api')
+  return {
+    ...actual,
+    driversApi: {
+      list: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      deactivate: jest.fn(),
+    },
+    vehiclesApi: {
+      list: jest.fn().mockResolvedValue({
+        data: {
+          data: [
+            { id: 'veh-1', name: 'Toyota Camry', licensePlate: 'PP-1234' },
+            { id: 'veh-2', name: 'Honda Civic', licensePlate: 'PP-5678' },
+          ],
+          meta: { page: 1, limit: 20, total: 2, totalPages: 1 },
+        },
+      }),
+    },
+  }
+})
 
 // Mock next/navigation
 jest.mock('next/navigation', () => ({
@@ -51,49 +68,69 @@ jest.mock('@/components/admin/drivers/DriverForm', () => ({
   ),
 }))
 
+/**
+ * Shapes a mocked `list()` result the way the axios envelope interceptor leaves
+ * it: `response.data` is the `{ data, meta }` page object, NOT a bare array.
+ * `unwrapList` normalises this to `{ items, meta }`.
+ */
+function paginated<T>(items: T[]) {
+  return {
+    data: {
+      data: items,
+      meta: { page: 1, limit: 20, total: items.length, totalPages: 1 },
+    },
+  }
+}
+
+// camelCase fields matching the admin API's Driver shape (see prisma `Driver`):
+// telegramId is a BigInt serialised to a string|null; vehicle is the included
+// relation used to render the Vehicle column.
 const mockDrivers = [
   {
     id: 'drv-1',
-    driver_name: 'John Doe',
-    driver_id: 'DRV001',
-    telegram_id: '123456789',
+    driverName: 'John Doe',
+    driverId: 'DRV001',
+    telegramId: '123456789',
     phone: '+85512345678',
-    vehicle_name: 'Toyota Camry',
+    vehicleId: 'veh-1',
     status: 'AVAILABLE',
-    last_status_update: new Date().toISOString(),
-    last_telegram_activity: new Date().toISOString(),
-    created_at: new Date().toISOString(),
+    lastStatusUpdate: new Date().toISOString(),
+    lastTelegramActivity: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    vehicle: { id: 'veh-1', name: 'Toyota Camry', licensePlate: 'PP-1234' },
   },
   {
     id: 'drv-2',
-    driver_name: 'Jane Smith',
-    driver_id: 'DRV002',
-    telegram_id: null,
+    driverName: 'Jane Smith',
+    driverId: 'DRV002',
+    telegramId: null,
     phone: '+85587654321',
-    vehicle_name: null,
+    vehicleId: null,
     status: 'BUSY',
-    last_status_update: new Date().toISOString(),
-    last_telegram_activity: null,
-    created_at: new Date().toISOString(),
+    lastStatusUpdate: new Date().toISOString(),
+    lastTelegramActivity: null,
+    createdAt: new Date().toISOString(),
+    vehicle: null,
   },
   {
     id: 'drv-3',
-    driver_name: 'Bob Wilson',
-    driver_id: 'DRV003',
-    telegram_id: '987654321',
+    driverName: 'Bob Wilson',
+    driverId: 'DRV003',
+    telegramId: '987654321',
     phone: '+85511223344',
-    vehicle_name: 'Honda Civic',
+    vehicleId: 'veh-2',
     status: 'OFFLINE',
-    last_status_update: new Date().toISOString(),
-    last_telegram_activity: new Date().toISOString(),
-    created_at: new Date().toISOString(),
+    lastStatusUpdate: new Date().toISOString(),
+    lastTelegramActivity: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    vehicle: { id: 'veh-2', name: 'Honda Civic', licensePlate: 'PP-5678' },
   },
 ]
 
 describe('DriverList', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    ;(api.driversApi.list as jest.Mock).mockResolvedValue({ data: mockDrivers })
+    ;(api.driversApi.list as jest.Mock).mockResolvedValue(paginated(mockDrivers))
   })
 
   it('renders driver list with correct columns', async () => {
@@ -123,7 +160,7 @@ describe('DriverList', () => {
 
     // Registered drivers should show "Registered" badge
     const registeredBadges = screen.getAllByText('Registered')
-    expect(registeredBadges).toHaveLength(2) // John and Bob have telegram_id
+    expect(registeredBadges).toHaveLength(2) // John and Bob have telegramId
 
     // Non-registered driver should show "Not Registered"
     expect(screen.getByText('Not Registered')).toBeInTheDocument()
@@ -168,9 +205,11 @@ describe('DriverList', () => {
     const registeredOption = screen.getByRole('menuitemcheckbox', { name: 'Registered' })
     await user.click(registeredOption)
 
+    // has_telegram is validated server-side with @IsBooleanString, so the client
+    // must send the STRING 'true'/'false', not a JS boolean.
     await waitFor(() => {
       expect(api.driversApi.list).toHaveBeenCalledWith(
-        expect.objectContaining({ has_telegram: true })
+        expect.objectContaining({ has_telegram: 'true' })
       )
     })
   })
@@ -238,12 +277,40 @@ describe('DriverList', () => {
   })
 
   it('shows empty state when no drivers', async () => {
-    ;(api.driversApi.list as jest.Mock).mockResolvedValue({ data: [] })
+    ;(api.driversApi.list as jest.Mock).mockResolvedValue(paginated([]))
 
     render(<DriverList />)
 
     await waitFor(() => {
       expect(screen.getByText('No drivers found')).toBeInTheDocument()
+    })
+  })
+
+  it('deactivates a driver via the confirm dialog', async () => {
+    // The old Delete action called `driversApi.delete` (a DELETE that matched no
+    // route and 404'd). It is now a soft-delete via `deactivate`, and the confirm
+    // dialog copy reads "Deactivate", not "Delete".
+    const user = userEvent.setup()
+    ;(api.driversApi.deactivate as jest.Mock).mockResolvedValue({ data: {} })
+
+    render(<DriverList />)
+
+    await waitFor(() => {
+      expect(screen.getByText('John Doe')).toBeInTheDocument()
+    })
+
+    const johnRow = screen.getByText('John Doe').closest('tr') as HTMLElement
+    const deactivateButton = within(johnRow).getByTitle('Deactivate')
+    await user.click(deactivateButton)
+
+    // Confirm dialog uses the "Deactivate" verb. Scope to the dialog so we don't
+    // also match the row's title="Deactivate" action button.
+    const dialog = await screen.findByRole('alertdialog')
+    const confirmButton = within(dialog).getByRole('button', { name: 'Deactivate' })
+    await user.click(confirmButton)
+
+    await waitFor(() => {
+      expect(api.driversApi.deactivate).toHaveBeenCalledWith('drv-1')
     })
   })
 })

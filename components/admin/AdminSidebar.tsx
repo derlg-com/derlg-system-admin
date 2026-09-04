@@ -7,6 +7,7 @@ import {
   Car,
   Truck,
   CalendarCheck,
+  CreditCard,
   Hotel,
   Map,
   Users,
@@ -58,6 +59,9 @@ const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard, roles: ALL_ROLES },
   // /v1/admin/bookings
   { label: 'Bookings', href: '/admin/bookings', icon: CalendarCheck, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER', 'SUPPORT_AGENT'] },
+  // /v1/admin/payments — reads open to support agents; the two write actions are
+  // gated to OPERATIONS_MANAGER and SUPER_ADMIN inside the page.
+  { label: 'Payments', href: '/admin/payments', icon: CreditCard, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER', 'SUPPORT_AGENT'] },
   // /v1/admin/drivers
   { label: 'Drivers', href: '/admin/drivers', icon: Car, roles: ['SUPER_ADMIN', 'OPERATIONS_MANAGER', 'FLEET_MANAGER'] },
   // /v1/admin/vehicles

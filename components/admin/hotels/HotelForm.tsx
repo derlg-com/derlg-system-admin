@@ -16,8 +16,16 @@ import {
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import dynamic from 'next/dynamic'
 import { ImageUpload } from '@/components/shared/ImageUpload'
-import { LocationPicker } from './LocationPicker'
+
+const LocationPicker = dynamic(
+  () => import('./LocationPicker').then((m) => m.LocationPicker),
+  {
+    ssr: false,
+    loading: () => <div className="h-64 rounded-xl bg-muted animate-pulse" />,
+  },
+)
 
 const S = { background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' } as const
 const LABEL = { color: 'var(--text-secondary)' } as const

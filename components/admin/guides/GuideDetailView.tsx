@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   Star,
   Calendar,
-  Clock,
   Award,
   Languages,
   MapPin,
@@ -17,7 +16,7 @@ import {
   CheckCircle2,
   XCircle,
 } from 'lucide-react'
-import { guidesApi, bookingsApi } from '@/lib/api'
+import { guidesApi, bookingsApi, unwrapList } from '@/lib/api'
 import { DataTable } from '@/components/shared/DataTable'
 import {
   addDays,
@@ -25,7 +24,6 @@ import {
   endOfMonth,
   endOfWeek,
   format,
-  formatDistanceToNow,
   isSameDay,
   isSameMonth,
   startOfMonth,
@@ -42,32 +40,33 @@ interface GuideDetailViewProps {
 
 interface Guide {
   id: string
-  name?: string
-  user?: { name: string; email?: string; phone?: string }
+  userId?: string
+  user?: { fullName: string | null; email?: string; phone?: string } | null
   bio?: string
-  profile_picture?: string
+  avatarUrl?: string | null
   languages?: string[]
   specialties?: string[]
+  pricePerDayUsd?: number
+  averageRating?: number | null
+  assignmentCount?: number
+  isActive?: boolean
+  createdAt?: string
+  updatedAt?: string
+  // Not returned by the admin guide response; kept optional so the existing UI
+  // for these renders a sensible default rather than failing to type-check.
   experience_years?: number
   certifications?: string[]
   price_per_hour?: number
-  price_per_day?: number
-  avg_rating?: number
-  average_rating?: number
-  total_assignments?: number
-  is_active?: boolean
-  created_at?: string
-  updated_at?: string
 }
 
 interface BookingAssignment {
   id: string
-  booking_ref: string
-  customer_name: string
-  travel_date: string
+  reference: string
+  userId: string
+  user?: { fullName: string | null; email?: string } | null
   status: string
-  total: number
-  created_at: string
+  startDate: string
+  totalUsd: number
 }
 
 export function GuideDetailView({ guideId }: GuideDetailViewProps) {
@@ -81,13 +80,14 @@ export function GuideDetailView({ guideId }: GuideDetailViewProps) {
     staleTime: 30000,
   })
 
-  const { data: bookings = [], isLoading: bookingsLoading } = useQuery({
+  const { data, isLoading: bookingsLoading } = useQuery({
     queryKey: ['admin-guide-bookings', guideId],
     queryFn: () =>
-      bookingsApi.list({ guide_id: guideId }).then((r) => r.data as BookingAssignment[]),
+      bookingsApi.list({ guide_id: guideId }).then(unwrapList<BookingAssignment>),
     enabled: !!guideId,
     staleTime: 30000,
   })
+  const bookings = data?.items ?? []
 
   if (guideLoading) {
     return (
@@ -116,19 +116,23 @@ export function GuideDetailView({ guideId }: GuideDetailViewProps) {
     )
   }
 
-  const displayName = guide.name || guide.user?.name || 'Unknown'
-  const rating = guide.avg_rating || guide.average_rating || 0
-  const totalAssignments = guide.total_assignments ?? bookings.length
-  const completedAssignments = bookings.filter((b) => b.status === 'COMPLETED').length
+  const displayName = guide.user?.fullName || 'Unknown'
+  const rating = guide.averageRating || 0
+  const totalAssignments = guide.assignmentCount ?? bookings.length
+  const completedAssignments = bookings.filter((b) => b.status === 'completed').length
 
   const assignmentColumns = [
-    { key: 'booking_ref', label: 'Booking Ref', sortable: true },
-    { key: 'customer_name', label: 'Customer', sortable: true },
+    { key: 'reference', label: 'Booking Ref', sortable: true },
     {
-      key: 'travel_date',
+      key: 'customer',
+      label: 'Customer',
+      render: (r: BookingAssignment) => r.user?.fullName || r.userId,
+    },
+    {
+      key: 'startDate',
       label: 'Travel Date',
       render: (r: BookingAssignment) =>
-        r.travel_date ? format(new Date(r.travel_date), 'PP') : '—',
+        r.startDate ? format(new Date(r.startDate), 'PP') : '—',
     },
     {
       key: 'status',
@@ -136,27 +140,27 @@ export function GuideDetailView({ guideId }: GuideDetailViewProps) {
       render: (r: BookingAssignment) => (
         <span
           className={`inline-flex items-center gap-1 text-xs font-medium ${
-            r.status === 'COMPLETED'
+            r.status === 'completed'
               ? 'text-emerald-400'
-              : r.status === 'CONFIRMED'
+              : r.status === 'confirmed'
               ? 'text-blue-400'
-              : r.status === 'CANCELLED'
+              : r.status === 'cancelled'
               ? 'text-red-400'
-              : r.status === 'PENDING'
+              : r.status === 'hold' || r.status === 'pending_payment'
               ? 'text-amber-400'
               : 'text-slate-400'
           }`}
         >
-          {r.status === 'COMPLETED' && <CheckCircle2 className="size-3" />}
-          {r.status === 'CANCELLED' && <XCircle className="size-3" />}
-          {r.status}
+          {r.status === 'completed' && <CheckCircle2 className="size-3" />}
+          {r.status === 'cancelled' && <XCircle className="size-3" />}
+          {r.status.replace(/_/g, ' ')}
         </span>
       ),
     },
     {
-      key: 'total',
+      key: 'totalUsd',
       label: 'Total',
-      render: (r: BookingAssignment) => `$${Number(r.total).toFixed(2)}`,
+      render: (r: BookingAssignment) => `$${Number(r.totalUsd).toFixed(2)}`,
     },
   ]
 
@@ -180,10 +184,10 @@ export function GuideDetailView({ guideId }: GuideDetailViewProps) {
 
   const getAvailability = (date: Date) => {
     const booking = bookings.find((b) =>
-      b.travel_date ? isSameDay(new Date(b.travel_date), date) : false
+      b.startDate ? isSameDay(new Date(b.startDate), date) : false
     )
     if (booking) {
-      return booking.status === 'COMPLETED' ? 'completed' : 'booked'
+      return booking.status === 'completed' ? 'completed' : 'booked'
     }
     const daySeed = date.getDate()
     if (daySeed % 7 === 0) return 'unavailable'
@@ -211,9 +215,9 @@ export function GuideDetailView({ guideId }: GuideDetailViewProps) {
           <ArrowLeft className="size-4" />
         </Button>
         <div className="flex items-center gap-3">
-          {guide.profile_picture ? (
+          {guide.avatarUrl ? (
             <img
-              src={guide.profile_picture}
+              src={guide.avatarUrl}
               alt={displayName}
               className="w-12 h-12 rounded-full object-cover"
             />
@@ -226,8 +230,8 @@ export function GuideDetailView({ guideId }: GuideDetailViewProps) {
             <h1 className="text-xl font-bold">{displayName}</h1>
             <p className="text-sm text-muted-foreground">
               {guide.experience_years ?? 0} years experience ·{' '}
-              <Badge variant={guide.is_active !== false ? 'default' : 'secondary'}>
-                {guide.is_active !== false ? 'Active' : 'Inactive'}
+              <Badge variant={guide.isActive !== false ? 'default' : 'secondary'}>
+                {guide.isActive !== false ? 'Active' : 'Inactive'}
               </Badge>
             </p>
           </div>
@@ -355,7 +359,7 @@ export function GuideDetailView({ guideId }: GuideDetailViewProps) {
                 <div>
                   <p className="text-sm text-muted-foreground">Price per Day</p>
                   <p className="text-sm font-medium">
-                    {guide.price_per_day ? `$${Number(guide.price_per_day).toFixed(2)}` : '—'}
+                    {guide.pricePerDayUsd ? `$${Number(guide.pricePerDayUsd).toFixed(2)}` : '—'}
                   </p>
                 </div>
               </div>
@@ -382,7 +386,7 @@ export function GuideDetailView({ guideId }: GuideDetailViewProps) {
                 <div>
                   <p className="text-sm text-muted-foreground">Member Since</p>
                   <p className="text-sm font-medium">
-                    {guide.created_at ? format(new Date(guide.created_at), 'PPP') : '—'}
+                    {guide.createdAt ? format(new Date(guide.createdAt), 'PPP') : '—'}
                   </p>
                 </div>
               </div>

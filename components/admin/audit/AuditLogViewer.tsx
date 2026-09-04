@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { auditLogsApi } from '@/lib/api'
+import { auditLogsApi, unwrapList } from '@/lib/api'
 import { PageHeader } from '@/components/shared'
 import {
   Table,
@@ -27,32 +27,36 @@ import { toast } from 'sonner'
 
 interface AuditLog {
   id: string
-  created_at: string
-  timestamp?: string
-  admin_name?: string
-  admin_user_id?: string
-  action_type: string
-  action?: string
-  resource_type: string
-  resource?: string
-  affected_resource_id?: string
-  entity_id?: string
+  // Backend (admin-audit.service) returns camelCase; the actor is nested on
+  // `user`, and details live in `metadata`.
+  createdAt: string
+  userId?: string
+  user?: { fullName?: string | null; email?: string | null }
+  eventType: string
+  entityType: string
+  entityId?: string
+  // Only `metadata` is populated; changed_fields/request_body are kept optional
+  // (never sent) so the detail panel's guarded blocks still type-check.
   changed_fields?: Record<string, unknown>
   request_body?: Record<string, unknown>
   metadata?: Record<string, unknown>
 }
 
+// The backend filters `action_type` against the `AuditEventType` enum and 400s on
+// anything else, so these must be the enum members (not ad-hoc action names).
 const ACTION_TYPES = [
-  'DRIVER_ASSIGNMENT',
-  'BOOKING_MODIFICATION',
-  'PRICING_CHANGE',
-  'USER_ROLE_CHANGE',
-  'DRIVER_STATUS_UPDATE',
-  'BOOKING_CANCELLATION',
-  'ADMIN_USER_CREATED',
-  'ADMIN_USER_UPDATED',
-  'ADMIN_USER_DEACTIVATED',
-  'EXPORT_DATA',
+  'booking_created',
+  'booking_confirmed',
+  'booking_cancelled',
+  'payment_succeeded',
+  'payment_failed',
+  'refund_issued',
+  'loyalty_earned',
+  'loyalty_redeemed',
+  'user_registered',
+  'user_login',
+  'admin_action',
+  'security_event',
 ]
 
 function JsonBlock({ data }: { data: Record<string, unknown> | undefined }) {
@@ -89,7 +93,7 @@ export function AuditLogViewer() {
           start_date: startDate,
           end_date: endDate,
         })
-        .then((r) => r.data as AuditLog[]),
+        .then((r) => unwrapList<AuditLog>(r).items),
     staleTime: 30000,
   })
 
@@ -113,11 +117,11 @@ export function AuditLogViewer() {
 
     const headers = ['Timestamp', 'Admin', 'Action', 'Resource', 'Resource ID']
     const rows = logs.map((log) => [
-      log.created_at || log.timestamp || '',
-      log.admin_name || log.admin_user_id || '',
-      (log.action_type || log.action || '').replace(/_/g, ' '),
-      log.resource_type || log.resource || '',
-      log.affected_resource_id || log.entity_id || '',
+      log.createdAt || '',
+      log.user?.fullName || log.userId || '',
+      (log.eventType || '').replace(/_/g, ' '),
+      log.entityType || '',
+      log.entityId || '',
     ])
 
     const escape = (val: string) => {
@@ -251,32 +255,23 @@ export function AuditLogViewer() {
                         ) : null}
                       </TableCell>
                       <TableCell className="font-mono text-xs">
-                        {log.created_at || log.timestamp
-                          ? format(
-                              new Date(log.created_at || log.timestamp!),
-                              'MMM d, HH:mm:ss'
-                            )
+                        {log.createdAt
+                          ? format(new Date(log.createdAt), 'MMM d, HH:mm:ss')
                           : '—'}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {log.admin_name || log.admin_user_id || '—'}
+                        {log.user?.fullName || log.userId || '—'}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-xs">
-                          {(log.action_type || log.action || '').replace(
-                            /_/g,
-                            ' '
-                          )}
+                          {(log.eventType || '').replace(/_/g, ' ')}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {log.resource_type || log.resource || '—'}
+                        {log.entityType || '—'}
                       </TableCell>
                       <TableCell className="font-mono text-xs">
-                        {(log.affected_resource_id || log.entity_id || '').slice(
-                          0,
-                          8
-                        )}
+                        {(log.entityId || '').slice(0, 8)}
                         …
                       </TableCell>
                     </TableRow>

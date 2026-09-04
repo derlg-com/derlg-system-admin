@@ -9,9 +9,8 @@ import {
   Eye,
   Trash2,
   Wrench,
-  Loader2,
 } from 'lucide-react'
-import { vehiclesApi } from '@/lib/api'
+import { vehiclesApi, unwrapList } from '@/lib/api'
 import { getApiErrorMessage } from '@/lib/utils'
 import { DataTable } from '@/components/shared/DataTable'
 import { SearchInput, FilterDropdown, PageHeader, Modal, ConfirmDialog } from '@/components/shared'
@@ -22,16 +21,30 @@ import { toast } from 'sonner'
 interface Vehicle {
   id: string
   name: string
-  vehicle_type: 'VAN' | 'BUS' | 'TUK_TUK'
-  license_plate?: string
+  vehicleType: 'tuk_tuk' | 'van' | 'bus'
+  licensePlate?: string | null
   capacity: number
-  pricing_model: 'PER_DAY' | 'PER_KM' | 'FIXED'
-  price_usd: number
+  pricingModel: 'per_day' | 'per_km'
+  // Decimal column, serialised as a string by Prisma — coerce with Number() to format.
+  priceUsd: number | string
   province?: string
-  features?: string[]
   images?: string[]
-  assigned_driver?: { id: string; driver_name: string }
-  created_at?: string
+  isActive?: boolean
+  createdAt?: string
+  // Only the vehicle detail endpoint includes this; the list leaves it undefined.
+  assignedDriver?: { id: string; driverName: string } | null
+}
+
+/** Wire payload for create/update — camelCase, matching the admin API. */
+interface VehiclePayload {
+  name: string
+  vehicleType: string
+  licensePlate?: string
+  capacity: number
+  pricingModel: string
+  priceUsd: number
+  province: string
+  images: string[]
 }
 
 export function VehicleList() {
@@ -42,22 +55,25 @@ export function VehicleList() {
   const [tierFilter, setTierFilter] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Vehicle | null>(null)
-  const [deleting, setDeleting] = useState<Vehicle | null>(null)
+  const [deactivating, setDeactivating] = useState<Vehicle | null>(null)
   const [schedulingMaintenance, setSchedulingMaintenance] = useState<Vehicle | null>(null)
 
-  const { data = [], isLoading } = useQuery<Vehicle[]>({
+  const { data, isLoading } = useQuery({
     queryKey: ['admin-vehicles', categoryFilter, tierFilter],
     queryFn: () => {
       const params: Record<string, unknown> = {}
       if (categoryFilter) params.category = categoryFilter
       if (tierFilter) params.tier = tierFilter
-      return vehiclesApi.list(params).then((r) => r.data)
+      // Admin lists return `{ data, meta }`; unwrapList normalises to `{ items, meta }`.
+      return vehiclesApi.list(params).then(unwrapList<Vehicle>)
     },
     staleTime: 30000,
   })
 
+  const vehicles = data?.items ?? []
+
   const mutation = useMutation({
-    mutationFn: (d: VehicleFormData) =>
+    mutationFn: (d: VehiclePayload) =>
       editing
         ? vehiclesApi.update(editing.id, d)
         : vehiclesApi.create(d),
@@ -72,19 +88,20 @@ export function VehicleList() {
     },
   })
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => vehiclesApi.delete(id),
+  // Deactivate mutation — soft delete (booking history references the row).
+  const deactivateMutation = useMutation({
+    mutationFn: (id: string) => vehiclesApi.deactivate(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-vehicles'] })
-      setDeleting(null)
-      toast.success('Vehicle deleted successfully')
+      setDeactivating(null)
+      toast.success('Vehicle deactivated successfully')
     },
     onError: (err) => {
-      toast.error(getApiErrorMessage(err, 'Failed to delete vehicle'))
+      toast.error(getApiErrorMessage(err, 'Failed to deactivate vehicle'))
     },
   })
 
-  const filtered = data.filter((v) =>
+  const filtered = vehicles.filter((v) =>
     !search || v.name?.toLowerCase().includes(search.toLowerCase())
   )
 
@@ -99,12 +116,25 @@ export function VehicleList() {
   }
 
   const handleFormSubmit = (formData: VehicleFormData) => {
-    mutation.mutate(formData)
+    // Map the form's snake_case fields to the backend's camelCase DTO. `features`
+    // is intentionally dropped: Create/UpdateVehicleDto declares no such field and
+    // forbidNonWhitelisted would 400 the request if it were sent.
+    const payload: VehiclePayload = {
+      name: formData.name,
+      vehicleType: formData.vehicle_type,
+      licensePlate: formData.license_plate || undefined,
+      capacity: formData.capacity,
+      pricingModel: formData.pricing_model,
+      priceUsd: formData.price_usd,
+      province: formData.province,
+      images: formData.images,
+    }
+    mutation.mutate(payload)
   }
 
-  const handleDelete = () => {
-    if (deleting) {
-      deleteMutation.mutate(deleting.id)
+  const handleDeactivate = () => {
+    if (deactivating) {
+      deactivateMutation.mutate(deactivating.id)
     }
   }
 
@@ -116,33 +146,34 @@ export function VehicleList() {
       render: (r: Vehicle) => <div style={{ paddingLeft: 32 }}>{r.name ?? '—'}</div>,
     },
     {
-      key: 'vehicle_type',
+      key: 'vehicleType',
       label: 'Category',
       render: (r: Vehicle) => (
         <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
-          {r.vehicle_type.replace(/_/g, ' ')}
+          {r.vehicleType.replace(/_/g, ' ')}
         </span>
       ),
     },
     { key: 'capacity', label: 'Capacity', sortable: true },
     {
-      key: 'pricing_model',
+      key: 'pricingModel',
       label: 'Pricing',
       render: (r: Vehicle) => (
         <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-slate-400/10 text-slate-400">
-          {r.pricing_model.replace(/_/g, ' ')}
+          {r.pricingModel.replace(/_/g, ' ')}
         </span>
       ),
     },
     {
-      key: 'price_usd',
+      key: 'priceUsd',
       label: 'Price (USD)',
-      render: (r: Vehicle) => `$${r.price_usd?.toFixed(2) || '0.00'}`,
+      // priceUsd is a Prisma Decimal serialised as a string — coerce before formatting.
+      render: (r: Vehicle) => `$${Number(r.priceUsd ?? 0).toFixed(2)}`,
     },
     {
-      key: 'assigned_driver',
+      key: 'assignedDriver',
       label: 'Assigned Driver',
-      render: (r: Vehicle) => r.assigned_driver?.driver_name || '—',
+      render: (r: Vehicle) => r.assignedDriver?.driverName || '—',
     },
   ]
 
@@ -150,7 +181,7 @@ export function VehicleList() {
     <div>
       <PageHeader
         title="Vehicles"
-        subtitle={`${data.length} total vehicles`}
+        subtitle={`${vehicles.length} total vehicles`}
         actions={
           <button className="btn btn-primary" onClick={openCreate}>
             <Plus size={15} /> Add Vehicle
@@ -171,9 +202,9 @@ export function VehicleList() {
           onChange={setCategoryFilter}
           options={[
             { label: 'All Categories', value: '' },
-            { label: 'Van', value: 'VAN' },
-            { label: 'Bus', value: 'BUS' },
-            { label: 'Tuk Tuk', value: 'TUK_TUK' },
+            { label: 'Van', value: 'van' },
+            { label: 'Bus', value: 'bus' },
+            { label: 'Tuk Tuk', value: 'tuk_tuk' },
           ]}
           placeholder="All Categories"
         />
@@ -182,8 +213,8 @@ export function VehicleList() {
           onChange={setTierFilter}
           options={[
             { label: 'All Tiers', value: '' },
-            { label: 'Standard', value: 'STANDARD' },
-            { label: 'VIP', value: 'VIP' },
+            // 'Standard' removed — Prisma VehicleTier is normal | vip, no STANDARD member.
+            { label: 'VIP', value: 'vip' },
           ]}
           placeholder="All Tiers"
         />
@@ -233,9 +264,9 @@ export function VehicleList() {
                 className="btn btn-ghost btn-icon btn-sm"
                 onClick={(e) => {
                   e.stopPropagation()
-                  setDeleting(row)
+                  setDeactivating(row)
                 }}
-                title="Delete"
+                title="Deactivate"
               >
                 <Trash2 size={13} />
               </button>
@@ -261,13 +292,13 @@ export function VehicleList() {
             editing
               ? {
                   name: editing.name,
-                  vehicle_type: editing.vehicle_type,
-                  license_plate: editing.license_plate,
+                  vehicle_type: editing.vehicleType,
+                  license_plate: editing.licensePlate ?? '',
                   capacity: editing.capacity,
-                  pricing_model: editing.pricing_model,
-                  price_usd: editing.price_usd,
+                  pricing_model: editing.pricingModel,
+                  price_usd: Number(editing.priceUsd ?? 0),
                   province: editing.province || '',
-                  features: editing.features || [],
+                  features: [],
                   images: editing.images || [],
                 }
               : undefined
@@ -297,16 +328,16 @@ export function VehicleList() {
         )}
       </Modal>
 
-      {/* Delete Confirmation */}
+      {/* Deactivate Confirmation */}
       <ConfirmDialog
-        open={!!deleting}
-        title="Delete Vehicle"
-        message={`Are you sure you want to delete ${deleting?.name}? This action cannot be undone.`}
-        onConfirm={handleDelete}
-        onCancel={() => setDeleting(null)}
-        loading={deleteMutation.isPending}
+        open={!!deactivating}
+        title="Deactivate Vehicle"
+        message={`Deactivate ${deactivating?.name}? It will be hidden from new bookings and dispatch, but existing booking history is preserved.`}
+        onConfirm={handleDeactivate}
+        onCancel={() => setDeactivating(null)}
+        loading={deactivateMutation.isPending}
         variant="danger"
-        confirmLabel="Delete"
+        confirmLabel="Deactivate"
       />
     </div>
   )

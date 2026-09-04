@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Calendar as CalendarIcon, Wrench, Loader2, AlertTriangle } from 'lucide-react'
-import { maintenanceApi } from '@/lib/api'
+import { maintenanceApi, unwrapList } from '@/lib/api'
 import { format, addDays, isBefore, isAfter, parseISO } from 'date-fns'
 import { toast } from 'sonner'
 import {
@@ -39,19 +39,24 @@ interface MaintenanceSchedulerProps {
 
 interface MaintenanceRecord {
   id: string
-  maintenance_type: string
-  scheduled_date: string
+  maintenanceType: string
+  scheduledDate: string
 }
 
 export function MaintenanceScheduler({ vehicleId, onScheduled }: MaintenanceSchedulerProps) {
   const qc = useQueryClient()
   const [calendarOpen, setCalendarOpen] = useState(false)
 
-  const { data: upcomingRecords } = useQuery<MaintenanceRecord[]>({
+  const { data } = useQuery({
     queryKey: ['admin-maintenance', 'upcoming'],
-    queryFn: () => maintenanceApi.list({ status: 'SCHEDULED' }).then((r) => r.data),
+    // `status: 'SCHEDULED'` is a valid MaintenanceStatus. The list returns
+    // `{ data, meta }`; unwrapList normalises it to `{ items, meta }`.
+    queryFn: () =>
+      maintenanceApi.list({ status: 'SCHEDULED' }).then(unwrapList<MaintenanceRecord>),
     staleTime: 30000,
   })
+
+  const upcomingRecords = data?.items ?? []
 
   const form = useForm<MaintenanceFormData>({
     resolver: zodResolver(maintenanceSchema),
@@ -63,10 +68,14 @@ export function MaintenanceScheduler({ vehicleId, onScheduled }: MaintenanceSche
   })
 
   const mutation = useMutation({
-    mutationFn: (data: MaintenanceFormData) =>
+    mutationFn: (values: MaintenanceFormData) =>
+      // Map the form's snake_case fields to ScheduleMaintenanceDto (camelCase);
+      // sending snake_case keys would fail forbidNonWhitelisted with a 400.
       maintenanceApi.create({
-        ...data,
-        scheduled_date: format(data.scheduled_date, 'yyyy-MM-dd'),
+        vehicleId: values.vehicle_id,
+        maintenanceType: values.maintenance_type,
+        scheduledDate: format(values.scheduled_date, 'yyyy-MM-dd'),
+        maintenanceNotes: values.maintenance_notes || undefined,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-maintenance'] })
@@ -82,8 +91,8 @@ export function MaintenanceScheduler({ vehicleId, onScheduled }: MaintenanceSche
   // Find records due within 3 days
   const now = new Date()
   const threeDaysFromNow = addDays(now, 3)
-  const upcomingSoon = (upcomingRecords || []).filter((r) => {
-    const date = parseISO(r.scheduled_date)
+  const upcomingSoon = upcomingRecords.filter((r) => {
+    const date = parseISO(r.scheduledDate)
     return isAfter(date, now) && isBefore(date, threeDaysFromNow)
   })
 
@@ -101,7 +110,7 @@ export function MaintenanceScheduler({ vehicleId, onScheduled }: MaintenanceSche
               <div key={r.id} className="text-sm text-amber-200/80 flex items-center gap-2">
                 <Wrench className="size-3" />
                 <span>
-                  {r.maintenance_type} — {format(parseISO(r.scheduled_date), 'MMM d, yyyy')}
+                  {r.maintenanceType} — {format(parseISO(r.scheduledDate), 'MMM d, yyyy')}
                 </span>
               </div>
             ))}
@@ -111,7 +120,7 @@ export function MaintenanceScheduler({ vehicleId, onScheduled }: MaintenanceSche
 
       {/* Schedule form */}
       <Form {...form}>
-        <form onSubmit={form.handleSubmit((data) => mutation.mutate(data))} className="space-y-4">
+        <form onSubmit={form.handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <FormField
               control={form.control}

@@ -4,42 +4,40 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import {
-  Plus,
-  Edit2,
   Eye,
-  Trash2,
   UserCheck,
-  AlertCircle,
-  Bot,
-  Loader2,
   XCircle,
 } from 'lucide-react'
-import { bookingsApi, assignmentsApi, driversApi } from '@/lib/api'
+import { bookingsApi, assignmentsApi, driversApi, unwrapList } from '@/lib/api'
 import { getApiErrorMessage } from '@/lib/utils'
 import { DataTable } from '@/components/shared/DataTable'
 import { SearchInput, FilterDropdown, PageHeader, Modal, FormField, ConfirmDialog } from '@/components/shared'
 import { format, parseISO } from 'date-fns'
 import { toast } from 'sonner'
 
+interface BookingItemSummary {
+  bookingType: string
+}
+
 interface Booking {
   id: string
-  booking_ref: string
-  user?: { name: string; email: string }
-  user_id: string
-  booking_type: string
+  reference: string
+  user?: { id: string; fullName: string | null; email: string; phone: string | null }
+  userId: string
   status: string
-  travel_date: string
-  total_usd: number
-  ai_assisted: boolean
-  num_adults: number
-  num_children: number
+  startDate: string
+  totalUsd: number
+  // The admin bookings list endpoint does not include line items, and the type
+  // lives on items[].bookingType (not on the booking), so this is optional and
+  // usually absent here.
+  items?: BookingItemSummary[]
 }
 
 interface AssignableDriver {
   id: string
-  driver_name: string
+  driverName: string
   phone: string
-  telegram_id?: string | null
+  telegramId?: string | null
 }
 
 export function BookingList() {
@@ -54,24 +52,32 @@ export function BookingList() {
   const [showAssign, setShowAssign] = useState(false)
   const [assignDriverId, setAssignDriverId] = useState('')
 
-  const { data = [], isLoading } = useQuery<Booking[]>({
+  const { data, isLoading } = useQuery({
     queryKey: ['admin-bookings', statusFilter, typeFilter, aiFilter],
     queryFn: () => {
       const params: Record<string, unknown> = {}
       if (statusFilter) params.status = statusFilter
       if (typeFilter) params.booking_type = typeFilter
-      if (aiFilter === 'ai') params.ai_assisted = true
-      if (aiFilter === 'manual') params.ai_assisted = false
-      return bookingsApi.list(params).then((r) => r.data)
+      // ai_assisted is validated with @IsBooleanString server-side, so it must
+      // be the string 'true'/'false', not a JS boolean.
+      if (aiFilter === 'ai') params.ai_assisted = 'true'
+      if (aiFilter === 'manual') params.ai_assisted = 'false'
+      // Admin lists return { data, meta }; the axios interceptor unwraps one
+      // level, so response.data is that object (not an array). unwrapList
+      // normalises it so the .filter() below cannot throw.
+      return bookingsApi.list(params).then(unwrapList<Booking>)
     },
     staleTime: 30000,
   })
+  const bookings = data?.items ?? []
 
-  const { data: availableDrivers = [] } = useQuery<AssignableDriver[]>({
+  const { data: driversData } = useQuery({
     queryKey: ['admin-drivers-available'],
-    queryFn: () => driversApi.list({ status: 'AVAILABLE' }).then((r) => r.data),
+    queryFn: () =>
+      driversApi.list({ status: 'AVAILABLE' }).then(unwrapList<AssignableDriver>),
     enabled: showAssign,
   })
+  const availableDrivers = driversData?.items ?? []
 
   const cancelMutation = useMutation({
     mutationFn: (id: string) => bookingsApi.cancel(id),
@@ -87,7 +93,10 @@ export function BookingList() {
   })
 
   const assignMutation = useMutation({
-    mutationFn: (d: { driver_id: string; booking_id: string; vehicle_id: string }) =>
+    // AssignDriverDto expects camelCase driverId/bookingId; vehicleId is optional
+    // and omitted here — this dialog has no vehicle picker, so the backend defaults
+    // to the driver's own assigned vehicle.
+    mutationFn: (d: { driverId: string; bookingId: string; vehicleId?: string }) =>
       assignmentsApi.create(d),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-bookings'] })
@@ -100,18 +109,24 @@ export function BookingList() {
     },
   })
 
-  const filtered = data.filter((b) => {
+  const filtered = bookings.filter((b) => {
     if (!search) return true
     return (
-      b.booking_ref?.toLowerCase().includes(search.toLowerCase()) ||
+      b.reference?.toLowerCase().includes(search.toLowerCase()) ||
       b.user?.email?.toLowerCase().includes(search.toLowerCase())
     )
   })
 
+  // Booking type lives on the line items; the list endpoint omits them, so this
+  // returns [] and the Type column falls back to '—' rather than crashing on
+  // r.booking_type.replace(...).
+  const bookingItemTypes = (b: Booking): string[] =>
+    Array.from(new Set((b.items ?? []).map((i) => i.bookingType)))
+
 
   const columns = [
     {
-      key: 'booking_ref',
+      key: 'reference',
       label: <span style={{ display: 'inline-block', paddingLeft: 32 }}>Ref</span>,
       sortable: true,
       render: (r: Booking) => (
@@ -126,7 +141,7 @@ export function BookingList() {
               borderRadius: 4,
             }}
           >
-            {r.booking_ref}
+            {r.reference}
           </span>
         </div>
       ),
@@ -137,7 +152,7 @@ export function BookingList() {
       headerClassName: 'whitespace-nowrap',
       render: (r: Booking) => (
         <div>
-          <p className="text-sm font-medium">{r.user?.name || r.user_id}</p>
+          <p className="text-sm font-medium">{r.user?.fullName || r.userId}</p>
           {r.user?.email && (
             <p className="text-xs text-muted-foreground">{r.user.email}</p>
           )}
@@ -145,24 +160,33 @@ export function BookingList() {
       ),
     },
     {
-      key: 'booking_type',
+      key: 'type',
       label: 'Type',
-      render: (r: Booking) => (
-        <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
-          {r.booking_type.replace(/_/g, ' ')}
-        </span>
-      ),
+      render: (r: Booking) => {
+        const types = bookingItemTypes(r)
+        return (
+          <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+            {types.length ? types.map((t) => t.replace(/_/g, ' ')).join(', ') : '—'}
+          </span>
+        )
+      },
     },
     {
       key: 'status',
       label: 'Status',
       render: (r: Booking) => {
+        // BookingStatus enum members are lowercase, so the colour map must be
+        // keyed on them — the old UPPERCASE keys never matched and every badge
+        // rendered grey.
         const colors: Record<string, { text: string; bg: string }> = {
-          RESERVED: { text: 'var(--warning)', bg: 'var(--warning-muted)' },
-          CONFIRMED: { text: 'var(--success)', bg: 'var(--success-muted)' },
-          COMPLETED: { text: 'var(--info)', bg: 'var(--info-muted)' },
-          CANCELLED: { text: 'var(--danger)', bg: 'var(--danger-muted)' },
-          REFUNDED: { text: 'var(--text-muted)', bg: 'var(--bg-elevated)' },
+          hold: { text: 'var(--warning)', bg: 'var(--warning-muted)' },
+          pending_payment: { text: 'var(--warning)', bg: 'var(--warning-muted)' },
+          confirmed: { text: 'var(--success)', bg: 'var(--success-muted)' },
+          completed: { text: 'var(--info)', bg: 'var(--info-muted)' },
+          cancelled: { text: 'var(--danger)', bg: 'var(--danger-muted)' },
+          expired: { text: 'var(--text-muted)', bg: 'var(--bg-elevated)' },
+          payment_failed: { text: 'var(--danger)', bg: 'var(--danger-muted)' },
+          no_show: { text: 'var(--text-muted)', bg: 'var(--bg-elevated)' },
         }
         const cfg = colors[r.status] || { text: 'var(--text-muted)', bg: 'var(--bg-elevated)' }
         return (
@@ -170,42 +194,29 @@ export function BookingList() {
             className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
             style={{ color: cfg.text, background: cfg.bg }}
           >
-            {r.status}
+            {r.status.replace(/_/g, ' ')}
           </span>
         )
       },
     },
     {
-      key: 'travel_date',
+      key: 'startDate',
       label: 'Travel Date',
       sortable: true,
       render: (r: Booking) =>
-        r.travel_date ? format(parseISO(r.travel_date), 'MMM d, yyyy') : '—',
+        r.startDate ? format(parseISO(r.startDate), 'MMM d, yyyy') : '—',
     },
     {
-      key: 'total_usd',
+      key: 'totalUsd',
       label: 'Total',
       sortable: true,
-      render: (r: Booking) => `$${Number(r.total_usd).toFixed(2)}`,
-    },
-    {
-      key: 'ai_assisted',
-      label: 'AI',
-      render: (r: Booking) =>
-        r.ai_assisted ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-purple-400/10 text-purple-400 px-2 py-0.5 text-xs">
-            <Bot className="size-3" />
-            AI
-          </span>
-        ) : (
-          <span className="text-xs text-muted-foreground">Manual</span>
-        ),
+      render: (r: Booking) => `$${Number(r.totalUsd).toFixed(2)}`,
     },
   ]
 
   return (
     <div>
-      <PageHeader title="Bookings" subtitle={`${data.length} total bookings`} />
+      <PageHeader title="Bookings" subtitle={`${data?.meta.total ?? 0} total bookings`} />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-4 mb-5">
@@ -220,11 +231,14 @@ export function BookingList() {
           onChange={setStatusFilter}
           placeholder="All Statuses"
           options={[
-            { label: 'Reserved', value: 'RESERVED' },
-            { label: 'Confirmed', value: 'CONFIRMED' },
-            { label: 'Completed', value: 'COMPLETED' },
-            { label: 'Cancelled', value: 'CANCELLED' },
-            { label: 'Refunded', value: 'REFUNDED' },
+            { label: 'Hold', value: 'hold' },
+            { label: 'Pending Payment', value: 'pending_payment' },
+            { label: 'Confirmed', value: 'confirmed' },
+            { label: 'Completed', value: 'completed' },
+            { label: 'Cancelled', value: 'cancelled' },
+            { label: 'Expired', value: 'expired' },
+            { label: 'Payment Failed', value: 'payment_failed' },
+            { label: 'No Show', value: 'no_show' },
           ]}
         />
         <FilterDropdown
@@ -232,10 +246,10 @@ export function BookingList() {
           onChange={setTypeFilter}
           placeholder="All Types"
           options={[
-            { label: 'Package', value: 'PACKAGE' },
-            { label: 'Hotel Only', value: 'HOTEL_ONLY' },
-            { label: 'Transport Only', value: 'TRANSPORT_ONLY' },
-            { label: 'Guide Only', value: 'GUIDE_ONLY' },
+            { label: 'Trip Package', value: 'trip_package' },
+            { label: 'Hotel Room', value: 'hotel_room' },
+            { label: 'Transportation', value: 'transportation' },
+            { label: 'Tour Guide', value: 'tour_guide' },
           ]}
         />
         <FilterDropdown
@@ -269,8 +283,8 @@ export function BookingList() {
               >
                 <Eye size={13} />
               </button>
-              {row.booking_type === 'TRANSPORT_ONLY' &&
-                ['RESERVED', 'CONFIRMED'].includes(row.status) && (
+              {bookingItemTypes(row).includes('transportation') &&
+                ['hold', 'pending_payment', 'confirmed'].includes(row.status) && (
                   <button
                     className="btn btn-ghost btn-icon btn-sm"
                     title="Assign Driver"
@@ -283,7 +297,7 @@ export function BookingList() {
                     <UserCheck size={13} color="var(--success)" />
                   </button>
                 )}
-              {['RESERVED', 'CONFIRMED'].includes(row.status) && (
+              {['hold', 'pending_payment', 'confirmed'].includes(row.status) && (
                 <button
                   className="btn btn-ghost btn-icon btn-sm"
                   title="Cancel"
@@ -325,9 +339,8 @@ export function BookingList() {
               disabled={!assignDriverId || assignMutation.isPending}
               onClick={() =>
                 assignMutation.mutate({
-                  driver_id: assignDriverId,
-                  booking_id: selected?.id || '',
-                  vehicle_id: '',
+                  driverId: assignDriverId,
+                  bookingId: selected?.id || '',
                 })
               }
             >
@@ -345,8 +358,8 @@ export function BookingList() {
             <option value="">— Select driver —</option>
             {availableDrivers.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.driver_name} ({d.phone})
-                {d.telegram_id ? ' · Telegram' : ''}
+                {d.driverName} ({d.phone})
+                {d.telegramId ? ' · Telegram' : ''}
               </option>
             ))}
           </select>
@@ -362,7 +375,7 @@ export function BookingList() {
       <ConfirmDialog
         open={showCancel}
         title="Cancel Booking"
-        message={`Are you sure you want to cancel booking ${selected?.booking_ref}? This will process a refund if payment was made.`}
+        message={`Are you sure you want to cancel booking ${selected?.reference}? This will process a refund if payment was made.`}
         confirmLabel="Cancel Booking"
         onConfirm={() => selected && cancelMutation.mutate(selected.id)}
         onCancel={() => {

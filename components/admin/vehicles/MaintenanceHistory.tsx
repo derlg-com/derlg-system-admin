@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { maintenanceApi } from '@/lib/api'
+import { maintenanceApi, unwrapList } from '@/lib/api'
 import { DataTable } from '@/components/shared/DataTable'
 import { format, parseISO } from 'date-fns'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -12,36 +12,46 @@ interface MaintenanceHistoryProps {
 
 interface MaintenanceRecord {
   id: string
-  vehicle_id: string
-  maintenance_type: string
-  scheduled_date: string
-  completion_date?: string
-  maintenance_cost?: number
-  maintenance_notes?: string
+  vehicleId: string
+  maintenanceType: string
+  scheduledDate: string
+  completionDate?: string | null
+  // Decimal column, serialised as a string by Prisma — coerce with Number() to format.
+  maintenanceCost?: number | string | null
+  maintenanceNotes?: string | null
   status: 'SCHEDULED' | 'IN_MAINTENANCE' | 'COMPLETED'
 }
 
 export function MaintenanceHistory({ vehicleId }: MaintenanceHistoryProps) {
-  const { data = [], isLoading } = useQuery<MaintenanceRecord[]>({
+  const { data, isLoading } = useQuery({
     queryKey: ['admin-maintenance', vehicleId || 'all'],
+    // For a single vehicle, getForVehicle returns the COMPLETE history as a bare
+    // array (no 20-row pagination cap), which the total-cost sum below relies on;
+    // the general list is paginated. unwrapList normalises both to `{ items }`.
     queryFn: () =>
-      maintenanceApi
-        .list(vehicleId ? { vehicle_id: vehicleId } : {})
-        .then((r) => r.data),
+      (vehicleId
+        ? maintenanceApi.getForVehicle(vehicleId)
+        : maintenanceApi.list({})
+      ).then(unwrapList<MaintenanceRecord>),
     staleTime: 30000,
   })
 
-  const totalCost = data.reduce((sum, r) => sum + (r.maintenance_cost || 0), 0)
+  const records = data?.items ?? []
+
+  const totalCost = records.reduce(
+    (sum, r) => sum + (r.maintenanceCost != null ? Number(r.maintenanceCost) : 0),
+    0,
+  )
 
   const columns = [
     {
-      key: 'scheduled_date',
+      key: 'scheduledDate',
       label: 'Date',
       sortable: true,
       render: (r: MaintenanceRecord) =>
-        r.scheduled_date ? format(parseISO(r.scheduled_date), 'MMM d, yyyy') : '—',
+        r.scheduledDate ? format(parseISO(r.scheduledDate), 'MMM d, yyyy') : '—',
     },
-    { key: 'maintenance_type', label: 'Type', sortable: true },
+    { key: 'maintenanceType', label: 'Type', sortable: true },
     {
       key: 'status',
       label: 'Status',
@@ -60,15 +70,15 @@ export function MaintenanceHistory({ vehicleId }: MaintenanceHistoryProps) {
       ),
     },
     {
-      key: 'maintenance_cost',
+      key: 'maintenanceCost',
       label: 'Cost',
       render: (r: MaintenanceRecord) =>
-        r.maintenance_cost !== undefined ? `$${r.maintenance_cost.toFixed(2)}` : '—',
+        r.maintenanceCost != null ? `$${Number(r.maintenanceCost).toFixed(2)}` : '—',
     },
     {
-      key: 'maintenance_notes',
+      key: 'maintenanceNotes',
       label: 'Notes',
-      render: (r: MaintenanceRecord) => r.maintenance_notes || '—',
+      render: (r: MaintenanceRecord) => r.maintenanceNotes || '—',
     },
   ]
 
@@ -92,7 +102,7 @@ export function MaintenanceHistory({ vehicleId }: MaintenanceHistoryProps) {
 
       <DataTable
         columns={columns}
-        data={data}
+        data={records}
         rowKey="id"
         emptyMessage="No maintenance records found"
       />

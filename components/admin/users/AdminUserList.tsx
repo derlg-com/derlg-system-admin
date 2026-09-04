@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Edit2, Power } from 'lucide-react'
-import { adminUsersApi } from '@/lib/api'
+import { adminUsersApi, unwrapList } from '@/lib/api'
 import { DataTable } from '@/components/shared/DataTable'
 import { PageHeader, StatusBadge, ConfirmDialog } from '@/components/shared'
 import { AdminUserForm, isAdminRole, type AdminUserFormData } from './AdminUserForm'
@@ -20,11 +20,11 @@ import { toast } from 'sonner'
 interface AdminUser {
   id: string
   email: string
-  name: string
-  admin_role: string
+  fullName: string | null
+  adminRole: string
   permissions?: Record<string, boolean>
-  is_active: boolean
-  created_at: string
+  isActive: boolean
+  createdAt: string
 }
 
 export function AdminUserList() {
@@ -35,7 +35,9 @@ export function AdminUserList() {
 
   const { data = [], isLoading } = useQuery({
     queryKey: ['admin-users'],
-    queryFn: () => adminUsersApi.list().then((r) => r.data as AdminUser[]),
+    // adminUsersApi.list returns a bare array rather than { data, meta };
+    // unwrapList normalises both shapes to `.items`.
+    queryFn: () => adminUsersApi.list().then((r) => unwrapList<AdminUser>(r).items),
     staleTime: 30000,
   })
 
@@ -62,7 +64,10 @@ export function AdminUserList() {
   })
 
   const deactivateMutation = useMutation({
-    mutationFn: (id: string) => adminUsersApi.update(id, { is_active: false }),
+    // Dedicated route, not `update({ is_active: false })`: the update DTO
+    // whitelists camelCase `isActive` only, and `forbidNonWhitelisted` 400s on
+    // the snake_case body the old call sent. The route also revokes sessions.
+    mutationFn: (id: string) => adminUsersApi.deactivate(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-users'] })
       setDeactivateTarget(null)
@@ -100,8 +105,8 @@ export function AdminUserList() {
   const defaultFormValues: Partial<AdminUserFormData> | undefined = editing
     ? {
         email: editing.email,
-        full_name: editing.name,
-        admin_role: isAdminRole(editing.admin_role) ? editing.admin_role : 'SUPPORT_AGENT',
+        full_name: editing.fullName ?? '',
+        admin_role: isAdminRole(editing.adminRole) ? editing.adminRole : 'SUPPORT_AGENT',
         permissions: editing.permissions || {},
       }
     : undefined
@@ -131,12 +136,12 @@ export function AdminUserList() {
           emptyMessage="No admin users found"
           columns={[
             {
-              key: 'name',
+              key: 'fullName',
               label: <span style={{ display: 'inline-block', paddingLeft: 32 }}>Name</span>,
               sortable: true,
               render: (r: AdminUser) => (
                 <div style={{ paddingLeft: 32 }}>
-                  <span className="font-medium">{r.name}</span>
+                  <span className="font-medium">{r.fullName}</span>
                 </div>
               ),
             },
@@ -153,15 +158,15 @@ export function AdminUserList() {
               render: (r: AdminUser) => (
                 <Badge
                   variant={
-                    r.admin_role === 'SUPER_ADMIN'
+                    r.adminRole === 'SUPER_ADMIN'
                       ? 'default'
-                      : r.admin_role === 'OPERATIONS_MANAGER'
+                      : r.adminRole === 'OPERATIONS_MANAGER'
                       ? 'secondary'
                       : 'outline'
                   }
                   className="text-xs"
                 >
-                  {r.admin_role.replace(/_/g, ' ')}
+                  {r.adminRole.replace(/_/g, ' ')}
                 </Badge>
               ),
             },
@@ -179,7 +184,7 @@ export function AdminUserList() {
               label: 'Status',
               render: (r: AdminUser) => (
                 <StatusBadge
-                  status={r.is_active !== false ? 'ACTIVE' : 'OFFLINE'}
+                  status={r.isActive !== false ? 'ACTIVE' : 'OFFLINE'}
                 />
               ),
             },
@@ -187,7 +192,7 @@ export function AdminUserList() {
               key: 'created_at',
               label: 'Added',
               render: (r: AdminUser) =>
-                format(new Date(r.created_at || Date.now()), 'MMM d, yyyy'),
+                format(new Date(r.createdAt || Date.now()), 'MMM d, yyyy'),
             },
           ]}
           actions={(row: AdminUser) => (
@@ -199,7 +204,7 @@ export function AdminUserList() {
               >
                 <Edit2 size={13} />
               </button>
-              {row.is_active !== false && (
+              {row.isActive !== false && (
                 <button
                   className="btn btn-ghost btn-icon btn-sm"
                   onClick={() => setDeactivateTarget(row)}
@@ -241,7 +246,7 @@ export function AdminUserList() {
       <ConfirmDialog
         open={!!deactivateTarget}
         title="Deactivate Admin Account"
-        message={`Are you sure you want to deactivate ${deactivateTarget?.name}'s admin account? This will revoke all their active tokens.`}
+        message={`Are you sure you want to deactivate ${deactivateTarget?.fullName}'s admin account? This will revoke all their active tokens.`}
         confirmLabel="Deactivate"
         variant="danger"
         onConfirm={() =>

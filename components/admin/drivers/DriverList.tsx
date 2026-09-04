@@ -8,13 +8,10 @@ import {
   Edit2,
   Eye,
   Trash2,
-  Search,
-  MessageCircle,
   CheckCircle2,
   XCircle,
-  Loader2,
 } from 'lucide-react'
-import { driversApi } from '@/lib/api'
+import { driversApi, unwrapList } from '@/lib/api'
 import { getApiErrorMessage } from '@/lib/utils'
 import { DataTable } from '@/components/shared/DataTable'
 import { SearchInput, FilterDropdown, PageHeader, Modal, ConfirmDialog } from '@/components/shared'
@@ -25,17 +22,19 @@ import { toast } from 'sonner'
 
 interface Driver {
   id: string
-  driver_name: string
-  driver_id: string
-  telegram_id?: string | null
+  driverName: string
+  driverId: string
+  // bigint column, serialised to a string by the backend's BigInt JSON shim.
+  telegramId?: string | null
   phone: string
-  vehicle_id?: string | null
-  vehicle_name?: string
+  vehicleId?: string | null
   status: 'AVAILABLE' | 'BUSY' | 'OFFLINE'
-  last_status_update?: string
-  last_telegram_activity?: string | null
-  created_at?: string
-  updated_at?: string
+  lastStatusUpdate?: string
+  lastTelegramActivity?: string | null
+  createdAt?: string
+  updatedAt?: string
+  // Included by the backend list query so the table can render the Vehicle column.
+  vehicle?: { id: string; name: string; licensePlate?: string | null } | null
 }
 
 /** Wire payload for create/update — camelCase, matching the admin API. */
@@ -44,11 +43,11 @@ interface DriverPayload {
   driverId: string
   phone: string
   telegramId?: string
-  vehicleId?: string
+  vehicleId?: string | null
 }
 
 function TelegramBadge({ driver }: { driver: Driver }) {
-  const isRegistered = !!driver.telegram_id
+  const isRegistered = !!driver.telegramId
   return (
     <span
       className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
@@ -78,20 +77,25 @@ export function DriverList() {
   const [telegramFilter, setTelegramFilter] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Driver | null>(null)
-  const [deleting, setDeleting] = useState<Driver | null>(null)
+  const [deactivating, setDeactivating] = useState<Driver | null>(null)
 
   // Fetch drivers
-  const { data = [], isLoading } = useQuery<Driver[]>({
+  const { data, isLoading } = useQuery({
     queryKey: ['admin-drivers', statusFilter, telegramFilter],
     queryFn: () => {
       const params: Record<string, unknown> = {}
       if (statusFilter) params.status = statusFilter
-      if (telegramFilter === 'registered') params.has_telegram = true
-      if (telegramFilter === 'not_registered') params.has_telegram = false
-      return driversApi.list(params).then((r) => r.data)
+      // Backend validates has_telegram with @IsBooleanString: it must be the
+      // string 'true'/'false', not a boolean, or the whole request 400s.
+      if (telegramFilter === 'registered') params.has_telegram = 'true'
+      if (telegramFilter === 'not_registered') params.has_telegram = 'false'
+      // Admin lists return `{ data, meta }`; unwrapList normalises to `{ items, meta }`.
+      return driversApi.list(params).then(unwrapList<Driver>)
     },
     staleTime: 30000,
   })
+
+  const drivers = data?.items ?? []
 
   // Create / Update mutation
   const mutation = useMutation({
@@ -110,24 +114,24 @@ export function DriverList() {
     },
   })
 
-  // Delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => driversApi.delete(id),
+  // Deactivate mutation — soft delete (assignment history references the row).
+  const deactivateMutation = useMutation({
+    mutationFn: (id: string) => driversApi.deactivate(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-drivers'] })
-      setDeleting(null)
-      toast.success('Driver deleted successfully')
+      setDeactivating(null)
+      toast.success('Driver deactivated successfully')
     },
     onError: (err) => {
-      toast.error(getApiErrorMessage(err, 'Failed to delete driver'))
+      toast.error(getApiErrorMessage(err, 'Failed to deactivate driver'))
     },
   })
 
   // Client-side search filter
-  const filtered = data.filter((d) =>
+  const filtered = drivers.filter((d) =>
     !search ||
-    d.driver_name?.toLowerCase().includes(search.toLowerCase()) ||
-    d.driver_id?.toLowerCase().includes(search.toLowerCase())
+    d.driverName?.toLowerCase().includes(search.toLowerCase()) ||
+    d.driverId?.toLowerCase().includes(search.toLowerCase())
   )
 
 
@@ -142,34 +146,34 @@ export function DriverList() {
   }
 
   const handleFormSubmit = (formData: DriverFormData) => {
-    const payload = {
+    const payload: DriverPayload = {
       driverName: formData.driver_name,
       driverId: formData.driver_id,
       phone: formData.phone,
       telegramId: formData.telegram_id || undefined,
-      vehicleId: formData.vehicle_id || undefined,
+      vehicleId: formData.vehicle_id ? formData.vehicle_id : (editing ? null : undefined),
     }
     mutation.mutate(payload)
   }
 
-  const handleDelete = () => {
-    if (deleting) {
-      deleteMutation.mutate(deleting.id)
+  const handleDeactivate = () => {
+    if (deactivating) {
+      deactivateMutation.mutate(deactivating.id)
     }
   }
 
   const columns = [
     {
-      key: 'driver_name',
+      key: 'driverName',
       label: <span style={{ display: 'inline-block', paddingLeft: 32 }}>Name</span>,
       sortable: true,
-      render: (r: Driver) => <div style={{ paddingLeft: 32 }}>{r.driver_name ?? '—'}</div>,
+      render: (r: Driver) => <div style={{ paddingLeft: 32 }}>{r.driverName ?? '—'}</div>,
     },
-    { key: 'driver_id', label: 'Driver ID', sortable: true },
+    { key: 'driverId', label: 'Driver ID', sortable: true },
     {
-      key: 'vehicle_name',
+      key: 'vehicle',
       label: 'Vehicle',
-      render: (r: Driver) => r.vehicle_name || '—',
+      render: (r: Driver) => r.vehicle?.name || '—',
     },
     {
       key: 'status',
@@ -182,19 +186,19 @@ export function DriverList() {
       render: (r: Driver) => <TelegramBadge driver={r} />,
     },
     {
-      key: 'last_telegram_activity',
+      key: 'lastTelegramActivity',
       label: 'Last Seen',
       render: (r: Driver) =>
-        r.last_telegram_activity
-          ? formatDistanceToNow(new Date(r.last_telegram_activity), { addSuffix: true })
+        r.lastTelegramActivity
+          ? formatDistanceToNow(new Date(r.lastTelegramActivity), { addSuffix: true })
           : '—',
     },
     {
-      key: 'last_status_update',
+      key: 'lastStatusUpdate',
       label: 'Last Update',
       render: (r: Driver) =>
-        r.last_status_update
-          ? formatDistanceToNow(new Date(r.last_status_update), { addSuffix: true })
+        r.lastStatusUpdate
+          ? formatDistanceToNow(new Date(r.lastStatusUpdate), { addSuffix: true })
           : '—',
     },
   ]
@@ -203,7 +207,7 @@ export function DriverList() {
     <div>
       <PageHeader
         title="Drivers"
-        subtitle={`${data.length} total drivers`}
+        subtitle={`${drivers.length} total drivers`}
         actions={
           <button className="btn btn-primary" onClick={openCreate}>
             <Plus size={15} /> Add Driver
@@ -276,9 +280,9 @@ export function DriverList() {
                 className="btn btn-ghost btn-icon btn-sm"
                 onClick={(e) => {
                   e.stopPropagation()
-                  setDeleting(row)
+                  setDeactivating(row)
                 }}
-                title="Delete"
+                title="Deactivate"
               >
                 <Trash2 size={13} />
               </button>
@@ -303,11 +307,11 @@ export function DriverList() {
           defaultValues={
             editing
               ? {
-                  driver_name: editing.driver_name,
-                  driver_id: editing.driver_id,
+                  driver_name: editing.driverName,
+                  driver_id: editing.driverId,
                   phone: editing.phone,
-                  telegram_id: editing.telegram_id || '',
-                  vehicle_id: editing.vehicle_id || '',
+                  telegram_id: editing.telegramId || '',
+                  vehicle_id: editing.vehicleId || '',
                 }
               : undefined
           }
@@ -320,16 +324,16 @@ export function DriverList() {
         />
       </Modal>
 
-      {/* Delete Confirmation */}
+      {/* Deactivate Confirmation */}
       <ConfirmDialog
-        open={!!deleting}
-        title="Delete Driver"
-        message={`Are you sure you want to delete ${deleting?.driver_name}? This action cannot be undone.`}
-        onConfirm={handleDelete}
-        onCancel={() => setDeleting(null)}
-        loading={deleteMutation.isPending}
+        open={!!deactivating}
+        title="Deactivate Driver"
+        message={`Deactivate ${deactivating?.driverName}? They will be set OFFLINE and hidden from dispatch. Their assignment history is preserved.`}
+        onConfirm={handleDeactivate}
+        onCancel={() => setDeactivating(null)}
+        loading={deactivateMutation.isPending}
         variant="danger"
-        confirmLabel="Delete"
+        confirmLabel="Deactivate"
       />
     </div>
   )

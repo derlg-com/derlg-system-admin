@@ -29,15 +29,18 @@ function createIcon(html: string) {
   })
 }
 
+// Keyed by the lowercase EmergencyAlertType enum the backend emits
+// (sos | medical | theft | lost). The alertType prop is passed straight from
+// EmergencyDetailView, which reads alert.alertType off the API response.
 const ALERT_ICON_COLORS: Record<string, string> = {
-  SOS: '#ef4444',
-  MEDICAL: '#f59e0b',
-  THEFT: '#8b5cf6',
-  LOST: '#06b6d4',
+  sos: '#ef4444',
+  medical: '#f59e0b',
+  theft: '#8b5cf6',
+  lost: '#06b6d4',
 }
 
 function alertIconHtml(type: string): string {
-  const color = ALERT_ICON_COLORS[type] || ALERT_ICON_COLORS.SOS
+  const color = ALERT_ICON_COLORS[type] || ALERT_ICON_COLORS.sos
   // Alert triangle SVG
   return `<div style="background:${color};width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);">
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
@@ -58,7 +61,7 @@ function placeIconHtml(type: string): string {
   return `<div style="background:${color};width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3);">${svg}</div>`
 }
 
-export function EmergencyMap({ lat, lng, alertType = 'SOS', radius = 500, nearbyPlaces = [] }: EmergencyMapProps) {
+export function EmergencyMap({ lat, lng, alertType = 'sos', radius = 500, nearbyPlaces = [] }: EmergencyMapProps) {
   const position: [number, number] = [lat, lng]
 
   const alertIcon = useMemo(() => createIcon(alertIconHtml(alertType)), [alertType])
@@ -79,8 +82,8 @@ export function EmergencyMap({ lat, lng, alertType = 'SOS', radius = 500, nearby
           center={position}
           radius={radius}
           pathOptions={{
-            color: ALERT_ICON_COLORS[alertType] || ALERT_ICON_COLORS.SOS,
-            fillColor: ALERT_ICON_COLORS[alertType] || ALERT_ICON_COLORS.SOS,
+            color: ALERT_ICON_COLORS[alertType] || ALERT_ICON_COLORS.sos,
+            fillColor: ALERT_ICON_COLORS[alertType] || ALERT_ICON_COLORS.sos,
             fillOpacity: 0.1,
             weight: 2,
           }}

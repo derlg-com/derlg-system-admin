@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { Plus, Edit2, Eye, BedDouble, Trash2, Star } from 'lucide-react'
-import { hotelsApi } from '@/lib/api'
+import { hotelsApi, unwrapList } from '@/lib/api'
 import { DataTable } from '@/components/shared/DataTable'
 import { SearchInput, PageHeader, ConfirmDialog } from '@/components/shared'
 import { HotelForm, type HotelFormData } from './HotelForm'
@@ -20,20 +20,20 @@ interface Hotel {
   id: string
   name: string
   description?: string
-  location?: { lat: number; lng: number }
+  // Backend (admin-hotels.service) returns flat numeric latitude/longitude, not a
+  // nested `location`, plus camelCase starRating/roomCount/isPublished.
   latitude?: number
   longitude?: number
   images?: string[]
-  rating?: number
-  star_rating?: number
+  starRating?: number
   amenities?: string[]
   check_in_time?: string
   check_out_time?: string
   cancellation_policy?: string
-  room_count?: number
-  is_active?: boolean
-  created_at?: string
-  updated_at?: string
+  roomCount?: number
+  isPublished?: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 
 export function HotelList() {
@@ -46,7 +46,7 @@ export function HotelList() {
 
   const { data = [], isLoading } = useQuery({
     queryKey: ['admin-hotels'],
-    queryFn: () => hotelsApi.list().then((r) => r.data as Hotel[]),
+    queryFn: () => hotelsApi.list().then((r) => unwrapList<Hotel>(r).items),
     staleTime: 30000,
   })
 
@@ -94,9 +94,10 @@ export function HotelList() {
   const filtered = data.filter((h: Hotel) => {
     if (!search) return true
     const term = search.toLowerCase()
-    const locationStr = h.location
-      ? `${h.location.lat}, ${h.location.lng}`
-      : ''
+    const locationStr =
+      h.latitude != null && h.longitude != null
+        ? `${h.latitude}, ${h.longitude}`
+        : ''
     return (
       h.name?.toLowerCase().includes(term) ||
       locationStr.toLowerCase().includes(term)
@@ -130,10 +131,10 @@ export function HotelList() {
     ? {
         name: editing.name,
         description: editing.description,
-        latitude: editing.location?.lat ?? editing.latitude ?? 11.5564,
-        longitude: editing.location?.lng ?? editing.longitude ?? 104.9282,
+        latitude: editing.latitude ?? 11.5564,
+        longitude: editing.longitude ?? 104.9282,
         images: editing.images,
-        star_rating: editing.rating ?? editing.star_rating,
+        star_rating: editing.starRating,
         amenities: editing.amenities,
         check_in_time: editing.check_in_time,
         check_out_time: editing.check_out_time,
@@ -193,25 +194,25 @@ export function HotelList() {
               key: 'location',
               label: 'Location',
               render: (r: Hotel) =>
-                r.location
-                  ? `${r.location.lat.toFixed(4)}, ${r.location.lng.toFixed(4)}`
+                r.latitude != null && r.longitude != null
+                  ? `${r.latitude.toFixed(4)}, ${r.longitude.toFixed(4)}`
                   : '-',
             },
             {
               key: 'rating',
               label: 'Rating',
               render: (r: Hotel) =>
-                r.rating ? (
+                r.starRating ? (
                   <span className="inline-flex items-center gap-0.5">
                     {Array.from({ length: 5 }).map((_, i) => (
                       <Star
                         key={i}
                         size={14}
-                        className={i < Math.round(r.rating || 0) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground'}
+                        className={i < Math.round(r.starRating || 0) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground'}
                       />
                     ))}
                     <span className="text-muted-foreground text-xs ml-1">
-                      {r.rating}
+                      {r.starRating}
                     </span>
                   </span>
                 ) : (
@@ -221,7 +222,7 @@ export function HotelList() {
             {
               key: 'room_count',
               label: 'Rooms',
-              render: (r: Hotel) => r.room_count ?? 0,
+              render: (r: Hotel) => r.roomCount ?? 0,
             },
             {
               key: 'check_in_time',
@@ -234,10 +235,10 @@ export function HotelList() {
               render: (r: Hotel) => (
                 <span
                   style={{
-                    color: r.is_active !== false ? 'var(--success)' : 'var(--text-muted)',
+                    color: r.isPublished !== false ? 'var(--success)' : 'var(--text-muted)',
                   }}
                 >
-                  {r.is_active !== false ? 'Active' : 'Inactive'}
+                  {r.isPublished !== false ? 'Published' : 'Unpublished'}
                 </span>
               ),
             },

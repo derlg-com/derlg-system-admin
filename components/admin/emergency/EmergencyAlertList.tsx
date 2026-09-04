@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState,
+  useEffect,
+  useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import {
@@ -10,9 +12,8 @@ import {
   Eye,
   Volume2,
   VolumeX,
-  Filter,
 } from 'lucide-react'
-import { emergencyApi } from '@/lib/api'
+import { emergencyApi, unwrapList } from '@/lib/api'
 import { useNotificationStore } from '@/store/adminStore'
 import { DataTable } from '@/components/shared/DataTable'
 import {
@@ -24,31 +25,34 @@ import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 
+// Keyed by the backend `EmergencyAlertType` enum, which is lowercase
+// (sos | medical | theft | lost) — the values now arrive in that casing.
 const ALERT_COLORS: Record<string, string> = {
-  SOS: 'var(--danger)',
-  MEDICAL: 'var(--warning)',
-  THEFT: 'var(--brand-accent)',
-  LOST: 'var(--info)',
+  sos: 'var(--danger)',
+  medical: 'var(--warning)',
+  theft: 'var(--brand-accent)',
+  lost: 'var(--info)',
 }
 
 interface EmergencyAlert {
   id: string
-  alert_type: string
+  alertType: string
   status: string
   message?: string
   latitude?: number
   longitude?: number
-  user_id?: string
-  user?: { name: string }
-  created_at: string
+  userId?: string
+  user?: { fullName: string | null }
+  createdAt: string
 }
 
 /** Wire payload accepted by PATCH /v1/admin/emergency/:id */
 interface EmergencyAlertUpdate {
-  status: 'ACKNOWLEDGED' | 'RESOLVED'
-  acknowledged_at?: string
-  resolved_at?: string
-  resolution_notes?: string
+  // Lowercase to match `EmergencyAlertStatus`; the controller branches on
+  // 'acknowledged'/'resolved'. Timestamps are set server-side and the resolution
+  // note maps to `notes` — the DTO whitelists only these, so any other key 400s.
+  status: 'acknowledged' | 'resolved'
+  notes?: string
 }
 
 /**
@@ -108,7 +112,7 @@ export function EmergencyAlertList() {
           ...(statusFilter ? { status: statusFilter } : {}),
           ...(typeFilter ? { alert_type: typeFilter } : {}),
         })
-        .then((r) => r.data as EmergencyAlert[]),
+        .then((r) => unwrapList<EmergencyAlert>(r).items),
     refetchInterval: 15000,
     staleTime: 10000,
   })
@@ -121,7 +125,7 @@ export function EmergencyAlertList() {
     if (prevIds.length > 0) {
       const newAlerts = data.filter(
         (a: EmergencyAlert) =>
-          !prevIds.includes(a.id) && a.status === 'SENT'
+          !prevIds.includes(a.id) && a.status === 'triggered'
       )
 
       newAlerts.forEach((alert: EmergencyAlert) => {
@@ -133,7 +137,7 @@ export function EmergencyAlertList() {
         // Browser notification
         if (browserNotifEnabled && typeof window !== 'undefined') {
           new Notification('Emergency Alert', {
-            body: `${alert.alert_type}: ${alert.message || 'No message'}`,
+            body: `${alert.alertType}: ${alert.message || 'No message'}`,
             icon: '/favicon.ico',
             tag: alert.id,
           })
@@ -143,12 +147,12 @@ export function EmergencyAlertList() {
         addNotification({
           type: 'EMERGENCY',
           title: 'Emergency Alert',
-          message: `${alert.alert_type} from ${alert.user?.name || 'Unknown'}`,
+          message: `${alert.alertType} from ${alert.user?.fullName || 'Unknown'}`,
           priority: 'urgent',
           data: alert,
         })
 
-        toast.error(`New ${alert.alert_type} emergency alert!`, {
+        toast.error(`New ${alert.alertType} emergency alert!`, {
           description: alert.message || 'Requires immediate attention',
         })
       })
@@ -167,11 +171,11 @@ export function EmergencyAlertList() {
     onError: () => toast.error('Failed to update alert'),
   })
 
-  const hasSentAlerts = data.some((a: EmergencyAlert) => a.status === 'SENT')
+  const hasSentAlerts = data.some((a: EmergencyAlert) => a.status === 'triggered')
 
   const filtered = data.filter((a: EmergencyAlert) => {
     if (statusFilter && a.status !== statusFilter) return false
-    if (typeFilter && a.alert_type !== typeFilter) return false
+    if (typeFilter && a.alertType !== typeFilter) return false
     return true
   })
 
@@ -203,10 +207,10 @@ export function EmergencyAlertList() {
               onChange={setTypeFilter}
               placeholder="All Types"
               options={[
-                { label: 'SOS', value: 'SOS' },
-                { label: 'Medical', value: 'MEDICAL' },
-                { label: 'Theft', value: 'THEFT' },
-                { label: 'Lost', value: 'LOST' },
+                { label: 'SOS', value: 'sos' },
+                { label: 'Medical', value: 'medical' },
+                { label: 'Theft', value: 'theft' },
+                { label: 'Lost', value: 'lost' },
               ]}
             />
             <FilterDropdown
@@ -214,9 +218,9 @@ export function EmergencyAlertList() {
               onChange={setStatusFilter}
               placeholder="All Statuses"
               options={[
-                { label: 'Sent (Open)', value: 'SENT' },
-                { label: 'Acknowledged', value: 'ACKNOWLEDGED' },
-                { label: 'Resolved', value: 'RESOLVED' },
+                { label: 'Triggered (Open)', value: 'triggered' },
+                { label: 'Acknowledged', value: 'acknowledged' },
+                { label: 'Resolved', value: 'resolved' },
               ]}
             />
           </div>
@@ -244,18 +248,18 @@ export function EmergencyAlertList() {
           }
           columns={[
             {
-              key: 'alert_type',
+              key: 'alertType',
               label: <span style={{ display: 'inline-block', paddingLeft: 32 }}>Type</span>,
               render: (r: EmergencyAlert) => (
                 <div style={{ paddingLeft: 32 }}>
                   <span
                     className="inline-flex items-center gap-1.5 font-semibold"
-                    style={{ color: ALERT_COLORS[r.alert_type] || 'var(--text-primary)' }}
+                    style={{ color: ALERT_COLORS[r.alertType] || 'var(--text-primary)' }}
                   >
-                    <div style={{ color: ALERT_COLORS[r.alert_type] || 'var(--text-primary)' }}>
+                    <div style={{ color: ALERT_COLORS[r.alertType] || 'var(--text-primary)' }}>
                       <AlertTriangle className="size-4" />
                     </div>
-                    {r.alert_type}
+                    {r.alertType}
                   </span>
                 </div>
               ),
@@ -263,7 +267,7 @@ export function EmergencyAlertList() {
             {
               key: 'user',
               label: 'Customer',
-              render: (r: EmergencyAlert) => r.user?.name || r.user_id || '—',
+              render: (r: EmergencyAlert) => r.user?.fullName || r.userId || '—',
             },
             {
               key: 'location',
@@ -281,10 +285,10 @@ export function EmergencyAlertList() {
               ),
             },
             {
-              key: 'created_at',
+              key: 'createdAt',
               label: 'Time',
               render: (r: EmergencyAlert) =>
-                formatDistanceToNow(new Date(r.created_at), {
+                formatDistanceToNow(new Date(r.createdAt), {
                   addSuffix: true,
                 }),
             },
@@ -301,7 +305,7 @@ export function EmergencyAlertList() {
               >
                 <Eye size={13} />
               </button>
-              {row.status === 'SENT' && (
+              {row.status === 'triggered' && (
                 <button
                   className="btn btn-ghost btn-icon btn-sm"
                   onClick={(e) => {
@@ -309,8 +313,7 @@ export function EmergencyAlertList() {
                     updateMutation.mutate({
                       id: row.id,
                       payload: {
-                        status: 'ACKNOWLEDGED',
-                        acknowledged_at: new Date().toISOString(),
+                        status: 'acknowledged',
                       },
                     })
                   }}
@@ -320,7 +323,7 @@ export function EmergencyAlertList() {
                   <CheckCircle size={13} />
                 </button>
               )}
-              {row.status === 'ACKNOWLEDGED' && (
+              {row.status === 'acknowledged' && (
                 <button
                   className="btn btn-ghost btn-icon btn-sm"
                   onClick={(e) => {
@@ -328,8 +331,7 @@ export function EmergencyAlertList() {
                     updateMutation.mutate({
                       id: row.id,
                       payload: {
-                        status: 'RESOLVED',
-                        resolved_at: new Date().toISOString(),
+                        status: 'resolved',
                       },
                     })
                   }}

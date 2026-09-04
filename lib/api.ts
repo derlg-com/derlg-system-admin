@@ -127,6 +127,69 @@ api.interceptors.response.use(
 export default api
 
 // ---------------------------------------------------------------------------
+// Paginated responses
+// ---------------------------------------------------------------------------
+
+/** Pagination metadata returned alongside every admin list. */
+export interface PageMeta {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+}
+
+/** Shape of a list endpoint's payload after the envelope interceptor runs. */
+export interface Paginated<T> {
+  data: T[]
+  meta: PageMeta
+}
+
+const EMPTY_META: PageMeta = { page: 1, limit: 0, total: 0, totalPages: 0 }
+
+/**
+ * Normalises a list response into `{ items, meta }`.
+ *
+ * Admin list services return `{ data, meta }`, which the response interceptor
+ * above unwraps exactly one level — so `response.data` is the `{ data, meta }`
+ * object, not the array. Components that did
+ * `list().then(r => r.data)` and then called `.filter()` on the result were
+ * calling it on that object, which threw
+ * `(intermediate value).filter is not a function` and blanked the page.
+ *
+ * A few endpoints (admin users, upcoming maintenance) legitimately return a bare
+ * array, so both shapes are accepted rather than requiring every caller to know
+ * which is which.
+ *
+ * @example
+ * const { data } = useQuery({
+ *   queryKey: ['admin-drivers'],
+ *   queryFn: () => driversApi.list().then(unwrapList<Driver>),
+ * })
+ * // data.items is always an array; data.meta is always present.
+ */
+export function unwrapList<T>(response: { data: unknown }): {
+  items: T[]
+  meta: PageMeta
+} {
+  const body = response.data
+
+  if (Array.isArray(body)) {
+    return {
+      items: body as T[],
+      meta: { ...EMPTY_META, limit: body.length, total: body.length, totalPages: 1 },
+    }
+  }
+
+  if (body && typeof body === 'object' && Array.isArray((body as Paginated<T>).data)) {
+    const paginated = body as Paginated<T>
+    return { items: paginated.data, meta: paginated.meta ?? EMPTY_META }
+  }
+
+  // Unrecognised shape: render an empty list rather than crashing the page.
+  return { items: [], meta: EMPTY_META }
+}
+
+// ---------------------------------------------------------------------------
 // Auth — served by the backend's own auth module, not an admin-specific one
 // ---------------------------------------------------------------------------
 export const authApi = {
@@ -151,7 +214,14 @@ export const driversApi = {
   get: (id: string) => api.get(`/admin/drivers/${id}`),
   create: (data: unknown) => api.post('/admin/drivers', data),
   update: (id: string, data: unknown) => api.patch(`/admin/drivers/${id}`, data),
-  delete: (id: string) => api.delete(`/admin/drivers/${id}`),
+  /**
+   * Retires a driver by forcing them OFFLINE.
+   *
+   * There is no `DELETE /admin/drivers/:id` and there should not be — assignment
+   * and booking history reference the driver row. This used to call DELETE, which
+   * matched no handler, so the list's Delete button 404'd every time.
+   */
+  deactivate: (id: string) => api.patch(`/admin/drivers/${id}/deactivate`),
 }
 
 export const vehiclesApi = {
@@ -159,7 +229,9 @@ export const vehiclesApi = {
   get: (id: string) => api.get(`/admin/vehicles/${id}`),
   create: (data: unknown) => api.post('/admin/vehicles', data),
   update: (id: string, data: unknown) => api.patch(`/admin/vehicles/${id}`, data),
-  delete: (id: string) => api.delete(`/admin/vehicles/${id}`),
+  getAvailability: (id: string) => api.get(`/admin/vehicles/${id}/availability`),
+  /** Soft-delete, for the same reason as `driversApi.deactivate`. */
+  deactivate: (id: string) => api.patch(`/admin/vehicles/${id}/deactivate`),
 }
 
 export const maintenanceApi = {
@@ -167,15 +239,31 @@ export const maintenanceApi = {
   create: (data: unknown) => api.post('/admin/maintenance', data),
   update: (id: string, data: unknown) =>
     api.patch(`/admin/maintenance/${id}`, data),
+  /** Records due soon — returns a bare array, not a paginated envelope. */
+  getUpcoming: () => api.get('/admin/maintenance/upcoming'),
+  /** Full history for one vehicle. */
+  getForVehicle: (vehicleId: string) =>
+    api.get(`/admin/maintenance/vehicle/${vehicleId}`),
 }
 
 export const bookingsApi = {
   list: (params?: Params) => api.get('/admin/bookings', { params }),
   get: (id: string) => api.get(`/admin/bookings/${id}`),
   update: (id: string, data: unknown) => api.patch(`/admin/bookings/${id}`, data),
-  /** Cancellation goes through the shared booking engine, refunds included. */
+  /** Bookings with no driver assigned yet — the dispatch work queue. */
+  listUnassigned: (params?: Params) =>
+    api.get('/admin/bookings/unassigned', { params }),
+  /**
+   * Admin cancellation.
+   *
+   * Must be the `/admin/` route. This previously posted to
+   * `/bookings/:id/cancel`, the customer endpoint, which asserts
+   * `booking.userId === caller.sub` — so an admin cancelling a customer's booking
+   * got a 403, and the action was impossible from the panel. The admin route also
+   * writes an audit-log entry.
+   */
   cancel: (id: string, reason?: string) =>
-    api.post(`/bookings/${id}/cancel`, reason ? { reason } : {}),
+    api.post(`/admin/bookings/${id}/cancel`, reason ? { reason } : {}),
 }
 
 export const aiSessionsApi = {
@@ -210,10 +298,22 @@ export const hotelsApi = {
     api.post(`/admin/hotels/${id}/rooms`, data),
   updateRoom: (hotelId: string, roomId: string, data: unknown) =>
     api.patch(`/admin/hotels/${hotelId}/rooms/${roomId}`, data),
-  /** Interval-overlap availability; dates are ISO yyyy-mm-dd. */
-  getRoomAvailability: (roomId: string, startDate: string, endDate: string) =>
-    api.get(`/admin/hotels/rooms/${roomId}/availability`, {
-      params: { startDate, endDate },
+  /**
+   * Interval-overlap availability; dates are ISO yyyy-mm-dd.
+   *
+   * The route is nested under the hotel — `hotels/:hotelId/rooms/:roomId/...`.
+   * This used to build `/admin/hotels/rooms/${roomId}/availability`, which is one
+   * segment short and matched no handler, and sent camelCase `startDate`/`endDate`
+   * where the endpoint reads `start_date`/`end_date`.
+   */
+  getRoomAvailability: (
+    hotelId: string,
+    roomId: string,
+    startDate: string,
+    endDate: string,
+  ) =>
+    api.get(`/admin/hotels/${hotelId}/rooms/${roomId}/availability`, {
+      params: { start_date: startDate, end_date: endDate },
     }),
 }
 
@@ -222,6 +322,13 @@ export const guidesApi = {
   get: (id: string) => api.get(`/admin/guides/${id}`),
   create: (data: unknown) => api.post('/admin/guides', data),
   update: (id: string, data: unknown) => api.patch(`/admin/guides/${id}`, data),
+  /** Trips/bookings this guide is booked on. */
+  getAssignments: (id: string) => api.get(`/admin/guides/${id}/assignments`),
+  /** Dates the guide is already committed. */
+  getAvailability: (id: string) => api.get(`/admin/guides/${id}/availability`),
+  /** Soft-delete: guides are referenced by historical bookings. */
+  deactivate: (id: string) =>
+    api.patch(`/admin/guides/${id}`, { isActive: false }),
 }
 
 /**
@@ -292,6 +399,14 @@ export const discountsApi = {
   list: (params?: Params) => api.get('/admin/discounts', { params }),
   create: (data: unknown) => api.post('/admin/discounts', data),
   update: (id: string, data: unknown) => api.patch(`/admin/discounts/${id}`, data),
+  /**
+   * Dedicated deactivate route.
+   *
+   * The list used to call `update(id, { is_active: false })`, which the backend
+   * rejected with 400: `UpdateDiscountCodeDto` whitelists camelCase `isActive`
+   * only, and `forbidNonWhitelisted` fails the request on any undeclared property.
+   */
+  deactivate: (id: string) => api.patch(`/admin/discounts/${id}/deactivate`),
   getStudentVerifications: (params?: Params) =>
     api.get('/admin/student-verifications', { params }),
   reviewStudentVerification: (id: string, data: unknown) =>
@@ -309,8 +424,73 @@ export const analyticsApi = {
     api.get('/admin/analytics/hotels', { params }),
   getGuideUtilization: (params?: Params) =>
     api.get('/admin/analytics/guides', { params }),
+  /** Revenue and volume attributable to the AI concierge. */
+  getAiBookings: (params?: Params) =>
+    api.get('/admin/analytics/ai-bookings', { params }),
+  /** Conversion and latency for the AI concierge. */
+  getAiPerformance: (params?: Params) =>
+    api.get('/admin/analytics/ai-performance', { params }),
   export: (params?: Params) =>
     api.get('/admin/analytics/export', { params, responseType: 'blob' }),
+}
+
+/**
+ * Payment operations.
+ *
+ * Reads are available to support agents fielding "did my payment go through?".
+ * `settleManually` and `refundsApi.complete` are OPERATIONS_MANAGER and above:
+ * one confirms a booking, the other records money as returned.
+ */
+export const paymentsApi = {
+  list: (params?: Params) => api.get('/admin/payments', { params }),
+  /**
+   * ABA payments that expired while still pending — money that arrived with no
+   * matching alert, or an ambiguous amount match the Telegram listener refused to
+   * guess at. Returns a bare array, not a paginated envelope.
+   */
+  getAbaExceptions: () => api.get('/admin/payments/aba-exceptions'),
+  /**
+   * Settles an ABA payment against a bank transaction the operator has verified.
+   *
+   * `abaTrxId` must be the numeric id from the ABA credit alert: it is stored in a
+   * unique column, so the same bank transaction cannot settle two bookings, and it
+   * ties the settlement to a line on the merchant statement. `reason` is recorded
+   * in the audit log and must be at least 10 characters.
+   */
+  settleManually: (id: string, abaTrxId: string, reason: string) =>
+    api.post(`/admin/payments/${id}/settle`, { abaTrxId, reason }),
+}
+
+/**
+ * Refunds.
+ *
+ * Card refunds settle themselves through Stripe. ABA has no refund API, so those
+ * are queued as `pending` and the payment's refunded total deliberately does not
+ * move until an operator confirms the transfer here — the books must not show
+ * money returned before it was.
+ */
+export const refundsApi = {
+  list: (params?: Params) => api.get('/admin/refunds', { params }),
+  complete: (id: string, providerRefundId: string, reason: string) =>
+    api.patch(`/admin/refunds/${id}/complete`, { providerRefundId, reason }),
+}
+
+/**
+ * Data export and backup. SUPER_ADMIN only.
+ *
+ * These five endpoints have existed on the backend since the admin merge with no
+ * client wrapper and no UI, so the "Data export & backup" capability was
+ * unreachable from the panel.
+ */
+export const exportApi = {
+  bookings: (params?: Params) =>
+    api.get('/admin/export/bookings', { params, responseType: 'blob' }),
+  drivers: (params?: Params) =>
+    api.get('/admin/export/drivers', { params, responseType: 'blob' }),
+  payments: (params?: Params) =>
+    api.get('/admin/export/payments', { params, responseType: 'blob' }),
+  createBackup: () => api.post('/admin/backup'),
+  listBackups: (params?: Params) => api.get('/admin/backups', { params }),
 }
 
 export const adminUsersApi = {

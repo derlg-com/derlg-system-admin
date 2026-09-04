@@ -4,10 +4,15 @@ import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { Plus, Edit2, Eye, Trash2, Star, MapPin } from 'lucide-react'
-import { guidesApi } from '@/lib/api'
+import { guidesApi, unwrapList } from '@/lib/api'
 import { DataTable } from '@/components/shared/DataTable'
 import { SearchInput, FilterDropdown, PageHeader, ConfirmDialog } from '@/components/shared'
-import { GuideForm, type GuideFormData } from './GuideForm'
+import {
+  GuideForm,
+  type GuideFormData,
+  GUIDE_LANGUAGES,
+  GUIDE_SPECIALTIES,
+} from './GuideForm'
 import {
   Dialog,
   DialogContent,
@@ -18,34 +23,38 @@ import { toast } from 'sonner'
 
 interface Guide {
   id: string
+  userId?: string
   name?: string
-  user?: { name: string }
+  user?: { fullName?: string; name?: string; email?: string }
   bio?: string
-  profile_picture?: string
+  avatarUrl?: string
   languages?: string[]
   specialties?: string[]
-  experience_years?: number
-  certifications?: string[]
-  price_per_hour?: number
-  price_per_day?: number
+  province?: string
+  pricePerDayUsd?: number
   avg_rating?: number
   average_rating?: number
-  total_assignments?: number
-  is_active?: boolean
-  created_at?: string
-  updated_at?: string
+  assignmentCount?: number
+  isVerified?: boolean
+  isActive?: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 
-const ALL_LANGUAGES = [
-  'English', 'Khmer', 'Chinese', 'Japanese', 'Korean',
-  'Thai', 'Vietnamese', 'French', 'German', 'Spanish',
-]
-
-const ALL_SPECIALTIES = [
-  'Temples', 'History', 'Culture', 'Nature', 'Food',
-  'Adventure', 'Photography', 'Architecture', 'Archaeology',
-  'Local Markets', 'Nightlife', 'Wellness',
-]
+const LANG_MAP = new Map<string, string>(
+  GUIDE_LANGUAGES.map((l) => [l.code, l.label]),
+)
+const SPEC_MAP = new Map<string, string>(
+  GUIDE_SPECIALTIES.map((s) => [s.code, s.label]),
+)
+const LANG_OPTIONS = GUIDE_LANGUAGES.map((l) => ({
+  label: l.label,
+  value: l.code,
+}))
+const SPEC_OPTIONS = GUIDE_SPECIALTIES.map((s) => ({
+  label: s.label,
+  value: s.code,
+}))
 
 export function GuideList() {
   const qc = useQueryClient()
@@ -59,7 +68,7 @@ export function GuideList() {
 
   const { data = [], isLoading } = useQuery({
     queryKey: ['admin-guides'],
-    queryFn: () => guidesApi.list().then((r) => r.data as Guide[]),
+    queryFn: () => guidesApi.list().then((r) => unwrapList<Guide>(r).items),
     staleTime: 30000,
   })
 
@@ -108,11 +117,15 @@ export function GuideList() {
     return data.filter((g: Guide) => {
       if (!search) return true
       const term = search.toLowerCase()
-      const name = g.name || g.user?.name || ''
+      const name = g.name || g.user?.fullName || g.user?.name || ''
+      const langs = (g.languages || []).map((l) => LANG_MAP.get(l) || l).join(' ')
+      const specs = (g.specialties || []).map((s) => SPEC_MAP.get(s) || s).join(' ')
       return (
         name.toLowerCase().includes(term) ||
-        g.bio?.toLowerCase().includes(term) ||
-        g.specialties?.some((s) => s.toLowerCase().includes(term))
+        (g.bio ? g.bio.toLowerCase().includes(term) : false) ||
+        (g.province ? g.province.toLowerCase().includes(term) : false) ||
+        langs.toLowerCase().includes(term) ||
+        specs.toLowerCase().includes(term)
       )
     }).filter((g: Guide) => {
       if (langFilter.length === 0) return true
@@ -148,15 +161,15 @@ export function GuideList() {
 
   const defaultFormValues: Partial<GuideFormData> | undefined = editing
     ? {
-        user_id: editing.id,
-        bio: editing.bio,
-        profile_picture: editing.profile_picture,
-        languages: editing.languages,
-        specialties: editing.specialties,
-        experience_years: editing.experience_years,
-        certifications: editing.certifications,
-        price_per_day_usd: editing.price_per_day || 0,
-        province: '',
+        userId: editing.userId || '',
+        bio: editing.bio || '',
+        avatarUrl: editing.avatarUrl || '',
+        languages: editing.languages || [],
+        specialties: editing.specialties || [],
+        province: editing.province || '',
+        pricePerDayUsd: editing.pricePerDayUsd || 0,
+        isVerified: editing.isVerified ?? false,
+        isActive: editing.isActive ?? true,
       }
     : undefined
 
@@ -196,14 +209,14 @@ export function GuideList() {
           <FilterDropdown
             label="Languages"
             placeholder="All Languages"
-            options={ALL_LANGUAGES.map(l => ({ label: l, value: l }))}
+            options={LANG_OPTIONS}
             value={langFilter}
             onChange={setLangFilter}
           />
           <FilterDropdown
             label="Specialties"
             placeholder="All Specialties"
-            options={ALL_SPECIALTIES.map(s => ({ label: s, value: s }))}
+            options={SPEC_OPTIONS}
             value={specFilter}
             onChange={setSpecFilter}
           />
@@ -228,7 +241,7 @@ export function GuideList() {
                 style={{ background: 'var(--brand-primary)', color: '#fff' }}
                 title="Click to remove"
               >
-                {lang}
+                {LANG_MAP.get(lang) || lang}
                 <span style={{ opacity: 0.8, marginLeft: 2 }}>×</span>
               </span>
             ))}
@@ -240,7 +253,7 @@ export function GuideList() {
                 style={{ background: 'var(--brand-secondary)', color: '#fff' }}
                 title="Click to remove"
               >
-                {spec}
+                {SPEC_MAP.get(spec) || spec}
                 <span style={{ opacity: 0.8, marginLeft: 2 }}>×</span>
               </span>
             ))}
@@ -261,10 +274,10 @@ export function GuideList() {
               sortable: true,
               render: (r: Guide) => (
                 <div style={{ paddingLeft: 32 }} className="flex items-center gap-2">
-                  {r.profile_picture ? (
+                  {r.avatarUrl ? (
                     <img
-                      src={r.profile_picture}
-                      alt={r.name || r.user?.name || ''}
+                      src={r.avatarUrl}
+                      alt={r.name || r.user?.fullName || r.user?.name || ''}
                       className="w-8 h-8 rounded-full object-cover"
                     />
                   ) : (
@@ -272,7 +285,7 @@ export function GuideList() {
                       <MapPin size={14} className="text-muted-foreground" />
                     </div>
                   )}
-                  <span className="font-medium">{r.name || r.user?.name || '—'}</span>
+                  <span className="font-medium">{r.name || r.user?.fullName || r.user?.name || '—'}</span>
                 </div>
               ),
             },
@@ -289,7 +302,7 @@ export function GuideList() {
                         className="text-xs px-1.5 py-0.5 rounded bg-muted cursor-pointer hover:bg-primary/20"
                         onClick={(e) => { e.stopPropagation(); toggleLangFilter(l) }}
                       >
-                        {l}
+                        {LANG_MAP.get(l) || l}
                       </span>
                     ))}
                     {langs.length > 3 && (
@@ -312,7 +325,7 @@ export function GuideList() {
                         className="text-xs px-1.5 py-0.5 rounded bg-muted cursor-pointer hover:bg-primary/20"
                         onClick={(e) => { e.stopPropagation(); toggleSpecFilter(s) }}
                       >
-                        {s}
+                        {SPEC_MAP.get(s) || s}
                       </span>
                     ))}
                     {specs.length > 2 && (
@@ -321,6 +334,11 @@ export function GuideList() {
                   </div>
                 )
               },
+            },
+            {
+              key: 'province',
+              label: 'Province',
+              render: (r: Guide) => r.province || '—',
             },
             {
               key: 'rating',
@@ -342,14 +360,9 @@ export function GuideList() {
               label: 'Price',
               render: (r: Guide) => (
                 <div className="text-sm">
-                  {r.price_per_day ? `$${Number(r.price_per_day).toFixed(2)}/day` : '—'}
+                  {r.pricePerDayUsd ? `$${Number(r.pricePerDayUsd).toFixed(2)}/day` : '—'}
                 </div>
               ),
-            },
-            {
-              key: 'experience_years',
-              label: 'Exp.',
-              render: (r: Guide) => `${r.experience_years ?? 0}y`,
             },
           ]}
           actions={(row: Guide) => (

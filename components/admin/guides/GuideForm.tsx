@@ -18,55 +18,82 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ImageUpload } from '@/components/shared/ImageUpload'
 
-const S = { background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' } as const
 const LABEL = { color: 'var(--text-secondary)' } as const
 
+export const GUIDE_LANGUAGES = [
+  { code: 'en', label: 'English' },
+  { code: 'km', label: 'Khmer' },
+  { code: 'zh', label: 'Chinese' },
+  { code: 'ja', label: 'Japanese' },
+  { code: 'ko', label: 'Korean' },
+  { code: 'th', label: 'Thai' },
+  { code: 'vi', label: 'Vietnamese' },
+  { code: 'fr', label: 'French' },
+  { code: 'de', label: 'German' },
+  { code: 'es', label: 'Spanish' },
+] as const
+
+export const GUIDE_SPECIALTIES = [
+  { code: 'culture_history', label: 'Culture & History' },
+  { code: 'food_tours', label: 'Food Tours' },
+  { code: 'nature_trekking', label: 'Nature & Trekking' },
+  { code: 'photography', label: 'Photography' },
+  { code: 'family_friendly', label: 'Family Friendly' },
+  { code: 'business', label: 'Business' },
+  { code: 'luxury', label: 'Luxury' },
+  { code: 'adventure', label: 'Adventure' },
+] as const
+
 const guideSchema = z.object({
-  user_id: z.string().min(1, 'User ID is required'),
+  userId: z.string().min(1, 'User ID is required'),
   bio: z.string().optional(),
-  profile_picture: z.string().optional(),
+  avatarUrl: z.string().optional(),
   languages: z.array(z.string()).optional(),
   specialties: z.array(z.string()).optional(),
   province: z.string().min(1, 'Province is required'),
-  price_per_day_usd: z.number().min(0),
-  experience_years: z.number().min(0).max(50).optional(),
-  certifications: z.array(z.string()).optional(),
-  is_verified: z.boolean().optional(),
-  is_active: z.boolean().optional(),
+  pricePerDayUsd: z.number().min(0, 'Price must be 0 or more'),
+  isVerified: z.boolean().optional(),
+  isActive: z.boolean().optional(),
 })
 
 export type GuideFormData = z.infer<typeof guideSchema>
 
 interface GuideFormProps {
-  defaultValues?: Partial<GuideFormData>
+  defaultValues?: Partial<GuideFormData> & Record<string, unknown>
   onSubmit: (data: GuideFormData) => void
   onCancel: () => void
   loading?: boolean
   isEditing?: boolean
 }
 
-const COMMON_LANGUAGES = ['English', 'Khmer', 'Chinese', 'Japanese', 'Korean', 'Thai', 'Vietnamese', 'French', 'German', 'Spanish']
-const COMMON_SPECIALTIES = ['Temples', 'History', 'Culture', 'Nature', 'Food', 'Adventure', 'Photography', 'Architecture', 'Archaeology', 'Local Markets', 'Nightlife', 'Wellness']
-const COMMON_CERTIFICATIONS = ['Licensed Tour Guide', 'First Aid Certified', 'Wilderness First Aid', 'Temple Authority License', 'Museum Guide License', 'National Park Guide']
-
 export function GuideForm({ defaultValues, onSubmit, onCancel, loading = false, isEditing = false }: GuideFormProps) {
-  const [imageUrl, setImageUrl] = useState<string>(defaultValues?.profile_picture || '')
+  const initialAvatar = (defaultValues?.avatarUrl as string) || (defaultValues?.profile_picture as string) || ''
+  const [imageUrl, setImageUrl] = useState<string>(initialAvatar)
 
   const form = useForm<GuideFormData>({
     resolver: zodResolver(guideSchema),
     defaultValues: {
-      user_id: '', bio: '', profile_picture: '', languages: [], specialties: [],
-      province: '', price_per_day_usd: 0, experience_years: 0, certifications: [],
-      is_verified: false, is_active: true,
-      ...defaultValues,
+      userId: defaultValues?.userId || (defaultValues?.user_id as string) || '',
+      bio: defaultValues?.bio || '',
+      avatarUrl: initialAvatar,
+      languages: defaultValues?.languages || [],
+      specialties: defaultValues?.specialties || [],
+      province: defaultValues?.province || '',
+      pricePerDayUsd: defaultValues?.pricePerDayUsd ?? (defaultValues?.price_per_day_usd as number) ?? 0,
+      isVerified: defaultValues?.isVerified ?? (defaultValues?.is_verified as boolean) ?? false,
+      isActive: defaultValues?.isActive ?? (defaultValues?.is_active as boolean) ?? true,
     },
   })
 
   const selectedLanguages = form.watch('languages') || []
   const selectedSpecialties = form.watch('specialties') || []
-  const selectedCertifications = form.watch('certifications') || []
 
-  const handleFormSubmit = (data: GuideFormData) => onSubmit({ ...data, profile_picture: imageUrl })
+  const handleFormSubmit = (data: GuideFormData) => {
+    onSubmit({
+      ...data,
+      avatarUrl: imageUrl || data.avatarUrl || undefined,
+    })
+  }
 
   return (
     <Form {...form}>
@@ -76,7 +103,7 @@ export function GuideForm({ defaultValues, onSubmit, onCancel, loading = false, 
         <div className="rounded-xl space-y-4" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', padding: '16px 20px' }}>
           <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Basic Information</p>
           <div className="grid grid-cols-2 gap-4">
-            <FormField control={form.control} name="user_id" render={({ field }) => (
+            <FormField control={form.control} name="userId" render={({ field }) => (
               <FormItem>
                 <FormLabel style={LABEL}>User ID *</FormLabel>
                 <FormControl><Input placeholder="UUID of existing user" {...field} style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} disabled={isEditing} /></FormControl>
@@ -92,18 +119,20 @@ export function GuideForm({ defaultValues, onSubmit, onCancel, loading = false, 
               </FormItem>
             )} />
 
-            <FormField control={form.control} name="price_per_day_usd" render={({ field }) => (
+            <FormField control={form.control} name="pricePerDayUsd" render={({ field }) => (
               <FormItem>
                 <FormLabel style={LABEL}>Price/Day (USD) *</FormLabel>
-                <FormControl><Input type="number" min={0} step={0.01} {...field} style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} /></FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
-
-            <FormField control={form.control} name="experience_years" render={({ field }) => (
-              <FormItem>
-                <FormLabel style={LABEL}>Experience (years)</FormLabel>
-                <FormControl><Input type="number" min={0} max={50} {...field} style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} /></FormControl>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    {...field}
+                    value={field.value ?? 0}
+                    onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }}
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )} />
@@ -126,15 +155,15 @@ export function GuideForm({ defaultValues, onSubmit, onCancel, loading = false, 
         <div className="rounded-xl space-y-3" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', padding: '16px 20px' }}>
           <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Languages</p>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-            {COMMON_LANGUAGES.map((lang) => (
-              <label key={lang} className="flex items-center gap-2 rounded-lg p-2.5 cursor-pointer transition-colors"
-                style={{ background: 'var(--bg-overlay)', border: `1px solid ${selectedLanguages.includes(lang) ? 'var(--brand-primary)' : 'var(--border-strong)'}` }}>
-                <Checkbox checked={selectedLanguages.includes(lang)}
+            {GUIDE_LANGUAGES.map((lang) => (
+              <label key={lang.code} className="flex items-center gap-2 rounded-lg p-2.5 cursor-pointer transition-colors"
+                style={{ background: 'var(--bg-overlay)', border: `1px solid ${selectedLanguages.includes(lang.code) ? 'var(--brand-primary)' : 'var(--border-strong)'}` }}>
+                <Checkbox checked={selectedLanguages.includes(lang.code)}
                   onCheckedChange={(checked) => {
                     const cur = form.getValues('languages') || []
-                    form.setValue('languages', checked === true ? [...cur, lang] : cur.filter(l => l !== lang))
+                    form.setValue('languages', checked === true ? [...cur, lang.code] : cur.filter(l => l !== lang.code))
                   }} />
-                <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{lang}</span>
+                <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{lang.label}</span>
               </label>
             ))}
           </div>
@@ -144,33 +173,15 @@ export function GuideForm({ defaultValues, onSubmit, onCancel, loading = false, 
         <div className="rounded-xl space-y-3" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', padding: '16px 20px' }}>
           <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Specialties</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {COMMON_SPECIALTIES.map((spec) => (
-              <label key={spec} className="flex items-center gap-2 rounded-lg p-2.5 cursor-pointer transition-colors"
-                style={{ background: 'var(--bg-overlay)', border: `1px solid ${selectedSpecialties.includes(spec) ? 'var(--brand-secondary)' : 'var(--border-strong)'}` }}>
-                <Checkbox checked={selectedSpecialties.includes(spec)}
+            {GUIDE_SPECIALTIES.map((spec) => (
+              <label key={spec.code} className="flex items-center gap-2 rounded-lg p-2.5 cursor-pointer transition-colors"
+                style={{ background: 'var(--bg-overlay)', border: `1px solid ${selectedSpecialties.includes(spec.code) ? 'var(--brand-secondary)' : 'var(--border-strong)'}` }}>
+                <Checkbox checked={selectedSpecialties.includes(spec.code)}
                   onCheckedChange={(checked) => {
                     const cur = form.getValues('specialties') || []
-                    form.setValue('specialties', checked === true ? [...cur, spec] : cur.filter(s => s !== spec))
+                    form.setValue('specialties', checked === true ? [...cur, spec.code] : cur.filter(s => s !== spec.code))
                   }} />
-                <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{spec}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* Certifications */}
-        <div className="rounded-xl space-y-3" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', padding: '16px 20px' }}>
-          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Certifications</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {COMMON_CERTIFICATIONS.map((cert) => (
-              <label key={cert} className="flex items-center gap-2 rounded-lg p-2.5 cursor-pointer transition-colors"
-                style={{ background: 'var(--bg-overlay)', border: `1px solid ${selectedCertifications.includes(cert) ? 'var(--brand-primary)' : 'var(--border-strong)'}` }}>
-                <Checkbox checked={selectedCertifications.includes(cert)}
-                  onCheckedChange={(checked) => {
-                    const cur = form.getValues('certifications') || []
-                    form.setValue('certifications', checked === true ? [...cur, cert] : cur.filter(c => c !== cert))
-                  }} />
-                <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{cert}</span>
+                <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{spec.label}</span>
               </label>
             ))}
           </div>
@@ -179,11 +190,11 @@ export function GuideForm({ defaultValues, onSubmit, onCancel, loading = false, 
         {/* Profile Picture */}
         <div className="rounded-xl space-y-3" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', padding: '16px 20px' }}>
           <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Profile Picture</p>
-          <ImageUpload onUpload={(urls) => { setImageUrl(urls[0] || ''); form.setValue('profile_picture', urls[0] || '') }} maxFiles={1} />
+          <ImageUpload onUpload={(urls) => { setImageUrl(urls[0] || ''); form.setValue('avatarUrl', urls[0] || '') }} maxFiles={1} />
           {imageUrl && (
             <div className="relative group rounded-lg overflow-hidden w-24 aspect-square" style={{ border: '1px solid var(--border-strong)' }}>
               <img src={imageUrl} alt="Profile" className="w-full h-full object-cover" />
-              <button type="button" onClick={() => { setImageUrl(''); form.setValue('profile_picture', '') }}
+              <button type="button" onClick={() => { setImageUrl(''); form.setValue('avatarUrl', '') }}
                 className="absolute top-1 right-1 size-5 flex items-center justify-center rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity">
                 <X className="size-3" />
               </button>

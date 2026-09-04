@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  UserCheck,
   MessageCircle,
   Clock,
   CheckCircle2,
@@ -12,7 +11,7 @@ import {
   Loader2,
   Send,
 } from 'lucide-react'
-import { driversApi, assignmentsApi } from '@/lib/api'
+import { driversApi, assignmentsApi, unwrapList } from '@/lib/api'
 import { getApiErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,20 +25,21 @@ import { toast } from 'sonner'
 
 interface Driver {
   id: string
-  driver_name: string
+  driverName: string
   phone: string
-  telegram_id?: string | null
-  vehicle_id?: string | null
+  telegramId?: string | null
+  vehicleId?: string | null
   status: string
 }
 
 interface Assignment {
   id: string
-  driver_id: string
+  driverId: string
+  vehicleId?: string
   status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'COMPLETED' | 'CANCELLED'
-  telegram_notified: boolean
-  assignment_timestamp: string
-  response_timestamp?: string
+  telegramNotified?: boolean
+  assignmentTimestamp: string
+  responseTimestamp?: string
   driver?: Driver
 }
 
@@ -94,18 +94,25 @@ export function DriverAssignmentPanel({
   const [telegramOnly, setTelegramOnly] = useState(false)
   const [error, setError] = useState('')
 
-  const { data: drivers = [], isLoading } = useQuery<Driver[]>({
+  const { data, isLoading } = useQuery({
     queryKey: ['admin-drivers', 'AVAILABLE', telegramOnly],
     queryFn: () => {
       const params: Record<string, unknown> = { status: 'AVAILABLE' }
-      if (telegramOnly) params.has_telegram = true
-      return driversApi.list(params).then((r) => r.data)
+      // has_telegram is validated with @IsBooleanString server-side — send the
+      // string 'true', not a JS boolean.
+      if (telegramOnly) params.has_telegram = 'true'
+      // Admin lists return { data, meta } after the envelope unwrap; unwrapList
+      // normalises that into an array so .find/.map below cannot throw.
+      return driversApi.list(params).then(unwrapList<Driver>)
     },
     staleTime: 10000,
   })
+  const drivers = data?.items ?? []
 
   const assignMutation = useMutation({
-    mutationFn: (data: { driver_id: string; booking_id: string; vehicle_id: string }) =>
+    // AssignDriverDto expects camelCase; vehicleId is optional and only sent when
+    // a real UUID is present (an empty string fails the backend's @IsUUID()).
+    mutationFn: (data: { driverId: string; bookingId: string; vehicleId?: string }) =>
       assignmentsApi.create(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-bookings'] })
@@ -126,17 +133,14 @@ export function DriverAssignmentPanel({
   })
 
   const selectedDriver = drivers.find((d) => d.id === selectedDriverId)
-  const capacityOk = selectedDriver
-    ? passengerCount <= (selectedDriver.vehicle_id ? 10 : 0) // approximate, backend validates
-    : true
-
   const handleAssign = () => {
     if (!selectedDriverId) return
     setError('')
     assignMutation.mutate({
-      driver_id: selectedDriverId,
-      booking_id: bookingId,
-      vehicle_id: vehicleId || '',
+      driverId: selectedDriverId,
+      bookingId,
+      // Only include vehicleId when a real UUID is present; '' fails @IsUUID().
+      ...(vehicleId ? { vehicleId } : {}),
     })
   }
 
@@ -184,7 +188,7 @@ export function DriverAssignmentPanel({
           <div className="text-sm space-y-1">
             <p>
               <span className="text-muted-foreground">Driver: </span>
-              {currentAssignment.driver.driver_name}
+              {currentAssignment.driver.driverName}
             </p>
             <p>
               <span className="text-muted-foreground">Phone: </span>
@@ -194,7 +198,7 @@ export function DriverAssignmentPanel({
         )}
 
         <div className="flex items-center gap-4 text-xs">
-          {currentAssignment.telegram_notified && (
+          {currentAssignment.telegramNotified && (
             <span className="inline-flex items-center gap-1 text-blue-400">
               <MessageCircle className="size-3" />
               Telegram notified
@@ -204,7 +208,7 @@ export function DriverAssignmentPanel({
             <span className="inline-flex items-center gap-1 text-amber-400">
               <Clock className="size-3" />
               Expires in:{' '}
-              <CountdownTimer startTime={currentAssignment.assignment_timestamp} />
+              <CountdownTimer startTime={currentAssignment.assignmentTimestamp} />
             </span>
           )}
         </div>
@@ -215,7 +219,20 @@ export function DriverAssignmentPanel({
   return (
     <div className="rounded-lg border border-border-default p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium">Assign Driver</h4>
+        {/*
+          Passenger count is shown rather than used for a client-side capacity
+          gate. The gate that used to live here compared against a hardcoded
+          guess of 10 seats and its result was never read. The backend rejects an
+          undersized vehicle with a 409 and an explicit message, which this panel
+          already surfaces — so the operator needs the number, not a second
+          (and contradictory) rule.
+        */}
+        <h4 className="text-sm font-medium">
+          Assign Driver
+          <span className="ml-2 text-xs font-normal text-muted-foreground">
+            {passengerCount} {passengerCount === 1 ? 'passenger' : 'passengers'}
+          </span>
+        </h4>
         <label className="flex items-center gap-2 text-xs cursor-pointer">
           <input
             type="checkbox"
@@ -241,8 +258,8 @@ export function DriverAssignmentPanel({
             {drivers.map((driver) => (
               <SelectItem key={driver.id} value={driver.id}>
                 <div className="flex items-center gap-2">
-                  <span>{driver.driver_name}</span>
-                  {driver.telegram_id && (
+                  <span>{driver.driverName}</span>
+                  {driver.telegramId && (
                     <MessageCircle className="size-3 text-blue-400" />
                   )}
                   <span className="text-muted-foreground text-xs">({driver.phone})</span>
@@ -252,7 +269,7 @@ export function DriverAssignmentPanel({
           </SelectContent>
         </Select>
 
-        {selectedDriver && !selectedDriver.telegram_id && (
+        {selectedDriver && !selectedDriver.telegramId && (
           <div className="flex items-center gap-1.5 text-xs text-amber-400">
             <AlertTriangle className="size-3" />
             This driver is not registered on Telegram

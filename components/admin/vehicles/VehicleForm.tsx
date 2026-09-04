@@ -25,15 +25,16 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { ImageUpload } from '@/components/shared/ImageUpload'
 
-const S = { background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' } as const
 const LABEL = { color: 'var(--text-secondary)' } as const
 
 const vehicleSchema = z.object({
   name: z.string().min(1, 'Vehicle name is required').max(255),
-  vehicle_type: z.enum(['VAN', 'BUS', 'TUK_TUK']),
+  // Values mirror the Prisma VehicleType enum (lowercase); backend @IsEnum rejects uppercase.
+  vehicle_type: z.enum(['van', 'bus', 'tuk_tuk']),
   license_plate: z.string().optional(),
   capacity: z.number().min(1).max(100),
-  pricing_model: z.enum(['PER_DAY', 'PER_KM', 'FIXED']),
+  // 'FIXED' dropped — Prisma PricingModel is per_day | per_km only, no fixed member.
+  pricing_model: z.enum(['per_day', 'per_km']),
   price_usd: z.number().min(0),
   province: z.string().min(1, 'Province is required'),
   features: z.array(z.string()),
@@ -62,8 +63,8 @@ export function VehicleForm({ defaultValues, onSubmit, onCancel, loading = false
   const form = useForm<VehicleFormData>({
     resolver: zodResolver(vehicleSchema),
     defaultValues: {
-      name: '', vehicle_type: 'VAN', license_plate: '', capacity: 4,
-      pricing_model: 'PER_DAY', price_usd: 0, province: '', features: [], images: [],
+      name: '', vehicle_type: 'van', license_plate: '', capacity: 4,
+      pricing_model: 'per_day', price_usd: 0, province: '', features: [], images: [],
       ...defaultValues,
     },
   })
@@ -94,9 +95,9 @@ export function VehicleForm({ defaultValues, onSubmit, onCancel, loading = false
                 <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl><SelectTrigger style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} className="w-full h-10"><SelectValue placeholder="Select category" /></SelectTrigger></FormControl>
                   <SelectContent className="z-[1100] min-w-[200px]">
-                    <SelectItem value="VAN">Van</SelectItem>
-                    <SelectItem value="BUS">Bus</SelectItem>
-                    <SelectItem value="TUK_TUK">Tuk Tuk</SelectItem>
+                    <SelectItem value="van">Van</SelectItem>
+                    <SelectItem value="bus">Bus</SelectItem>
+                    <SelectItem value="tuk_tuk">Tuk Tuk</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -109,9 +110,9 @@ export function VehicleForm({ defaultValues, onSubmit, onCancel, loading = false
                 <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl><SelectTrigger style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} className="w-full h-10"><SelectValue placeholder="Select pricing" /></SelectTrigger></FormControl>
                   <SelectContent className="z-[1100] min-w-[200px]">
-                    <SelectItem value="PER_DAY">Per Day</SelectItem>
-                    <SelectItem value="PER_KM">Per KM</SelectItem>
-                    <SelectItem value="FIXED">Fixed</SelectItem>
+                    <SelectItem value="per_day">Per Day</SelectItem>
+                    <SelectItem value="per_km">Per KM</SelectItem>
+                    {/* 'Fixed' removed — no Prisma PricingModel equivalent (per_day | per_km only). */}
                   </SelectContent>
                 </Select>
                 <FormMessage />

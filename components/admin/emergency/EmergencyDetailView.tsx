@@ -12,16 +12,23 @@ import {
   Mail,
   User,
   CheckCircle2,
-  XCircle,
   Truck,
   ShieldCheck,
   AlertCircle,
   Loader2,
 } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { emergencyApi, driversApi } from '@/lib/api'
-import { EmergencyMap } from './EmergencyMap'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+
+const EmergencyMap = dynamic(
+  () => import('./EmergencyMap').then((m) => m.EmergencyMap),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-64 w-full rounded-lg" />,
+  },
+)
 import { Badge } from '@/components/ui/badge'
 import { formatDistanceToNow, format } from 'date-fns'
 import { toast } from 'sonner'
@@ -32,51 +39,54 @@ interface EmergencyDetailViewProps {
 
 interface EmergencyAlert {
   id: string
-  alert_type: string
+  alertType: string
   status: string
   message?: string
   latitude?: number
   longitude?: number
-  user_id?: string
+  userId?: string
   user?: {
-    name: string
+    fullName: string | null
     email?: string
     phone?: string
   }
   booking_id?: string
-  driver_id?: string
+  driverId?: string
   driver?: {
-    driver_name: string
+    driverName: string
     phone?: string
-    telegram_id?: string
     status: string
   }
-  resolution_notes?: string
-  created_at: string
-  updated_at?: string
-  acknowledged_at?: string
-  resolved_at?: string
+  notes?: string
+  createdAt: string
+  acknowledgedAt?: string
+  resolvedAt?: string
 }
 
 /** Wire payload accepted by PATCH /v1/admin/emergency/:id */
 interface EmergencyAlertUpdate {
-  status: 'ACKNOWLEDGED' | 'RESOLVED'
-  acknowledged_at?: string
-  resolved_at?: string
-  resolution_notes?: string
+  // Lowercase to match `EmergencyAlertStatus`; the controller branches on
+  // 'acknowledged'/'resolved'. Timestamps are set server-side; the resolution
+  // note maps to `notes` — the DTO whitelists only these keys, so anything else
+  // is rejected with a 400.
+  status: 'acknowledged' | 'resolved'
+  notes?: string
 }
 
+// Keyed by the lowercase `EmergencyAlertStatus` / `EmergencyAlertType` enum
+// values the backend returns (triggered | acknowledged | resolved, sos | medical
+// | theft | lost).
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  SENT: { label: 'Sent', color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
-  ACKNOWLEDGED: { label: 'Acknowledged', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
-  RESOLVED: { label: 'Resolved', color: '#22c55e', bg: 'rgba(34,197,94,0.15)' },
+  triggered: { label: 'Triggered', color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
+  acknowledged: { label: 'Acknowledged', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
+  resolved: { label: 'Resolved', color: '#22c55e', bg: 'rgba(34,197,94,0.15)' },
 }
 
 const ALERT_COLORS: Record<string, string> = {
-  SOS: '#ef4444',
-  MEDICAL: '#f59e0b',
-  THEFT: '#8b5cf6',
-  LOST: '#06b6d4',
+  sos: '#ef4444',
+  medical: '#f59e0b',
+  theft: '#8b5cf6',
+  lost: '#06b6d4',
 }
 
 // Mock nearby places — in production this would come from a geocoding API
@@ -100,9 +110,9 @@ export function EmergencyDetailView({ alertId }: EmergencyDetailViewProps) {
   })
 
   const { data: driverData } = useQuery({
-    queryKey: ['admin-emergency-driver', alert?.driver_id],
-    queryFn: () => driversApi.get(alert!.driver_id!).then((r) => r.data),
-    enabled: !!alert?.driver_id,
+    queryKey: ['admin-emergency-driver', alert?.driverId],
+    queryFn: () => driversApi.get(alert!.driverId!).then((r) => r.data),
+    enabled: !!alert?.driverId,
     staleTime: 60000,
   })
 
@@ -120,7 +130,7 @@ export function EmergencyDetailView({ alertId }: EmergencyDetailViewProps) {
   const handleAcknowledge = () => {
     updateMutation.mutate({
       id: alertId,
-      data: { status: 'ACKNOWLEDGED', acknowledged_at: new Date().toISOString() },
+      data: { status: 'acknowledged' },
     })
   }
 
@@ -128,9 +138,8 @@ export function EmergencyDetailView({ alertId }: EmergencyDetailViewProps) {
     updateMutation.mutate({
       id: alertId,
       data: {
-        status: 'RESOLVED',
-        resolved_at: new Date().toISOString(),
-        resolution_notes: resolutionNotes,
+        status: 'resolved',
+        notes: resolutionNotes,
       },
     })
   }
@@ -169,8 +178,8 @@ export function EmergencyDetailView({ alertId }: EmergencyDetailViewProps) {
     )
   }
 
-  const statusConfig = STATUS_CONFIG[alert.status] || STATUS_CONFIG.SENT
-  const alertColor = ALERT_COLORS[alert.alert_type] || ALERT_COLORS.SOS
+  const statusConfig = STATUS_CONFIG[alert.status] || STATUS_CONFIG.triggered
+  const alertColor = ALERT_COLORS[alert.alertType] || ALERT_COLORS.sos
   const nearbyPlaces =
     alert.latitude && alert.longitude
       ? getMockNearbyPlaces(alert.latitude, alert.longitude)
@@ -189,7 +198,7 @@ export function EmergencyDetailView({ alertId }: EmergencyDetailViewProps) {
         </Button>
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold">{alert.alert_type} Alert</h1>
+            <h1 className="text-xl font-bold">{alert.alertType} Alert</h1>
             <Badge
               style={{
                 backgroundColor: statusConfig.bg,
@@ -203,15 +212,15 @@ export function EmergencyDetailView({ alertId }: EmergencyDetailViewProps) {
           </div>
           <p className="text-sm text-muted-foreground">
             {alert.id} ·{' '}
-            {formatDistanceToNow(new Date(alert.created_at), {
+            {formatDistanceToNow(new Date(alert.createdAt), {
               addSuffix: true,
             })}
           </p>
         </div>
       </div>
 
-      {/* Urgent banner for SENT alerts */}
-      {alert.status === 'SENT' && (
+      {/* Urgent banner for triggered alerts */}
+      {alert.status === 'triggered' && (
         <div
           className="alert alert-danger"
           style={{ animation: 'pulse-dot 2s ease-in-out infinite' }}
@@ -253,7 +262,7 @@ export function EmergencyDetailView({ alertId }: EmergencyDetailViewProps) {
               <EmergencyMap
                 lat={alert.latitude}
                 lng={alert.longitude}
-                alertType={alert.alert_type}
+                alertType={alert.alertType}
                 radius={500}
                 nearbyPlaces={nearbyPlaces}
               />
@@ -284,30 +293,30 @@ export function EmergencyDetailView({ alertId }: EmergencyDetailViewProps) {
               <div className="flex items-start gap-3">
                 <div
                   className="size-2 rounded-full mt-2 shrink-0"
-                  style={{ backgroundColor: ALERT_COLORS.SOS }}
+                  style={{ backgroundColor: ALERT_COLORS.sos }}
                 />
                 <div>
                   <p className="text-sm font-medium">Alert Sent</p>
                   <p className="text-xs text-muted-foreground">
-                    {format(new Date(alert.created_at), 'PPpp')}
+                    {format(new Date(alert.createdAt), 'PPpp')}
                   </p>
                 </div>
               </div>
-              {alert.acknowledged_at && (
+              {alert.acknowledgedAt && (
                 <div className="flex items-start gap-3">
                   <div
                     className="size-2 rounded-full mt-2 shrink-0"
-                    style={{ backgroundColor: ALERT_COLORS.MEDICAL }}
+                    style={{ backgroundColor: ALERT_COLORS.medical }}
                   />
                   <div>
                     <p className="text-sm font-medium">Acknowledged</p>
                     <p className="text-xs text-muted-foreground">
-                      {format(new Date(alert.acknowledged_at), 'PPpp')}
+                      {format(new Date(alert.acknowledgedAt), 'PPpp')}
                     </p>
                   </div>
                 </div>
               )}
-              {alert.resolved_at && (
+              {alert.resolvedAt && (
                 <div className="flex items-start gap-3">
                   <div
                     className="size-2 rounded-full mt-2 shrink-0"
@@ -316,7 +325,7 @@ export function EmergencyDetailView({ alertId }: EmergencyDetailViewProps) {
                   <div>
                     <p className="text-sm font-medium">Resolved</p>
                     <p className="text-xs text-muted-foreground">
-                      {format(new Date(alert.resolved_at), 'PPpp')}
+                      {format(new Date(alert.resolvedAt), 'PPpp')}
                     </p>
                   </div>
                 </div>
@@ -325,14 +334,14 @@ export function EmergencyDetailView({ alertId }: EmergencyDetailViewProps) {
           </div>
 
           {/* Resolution notes (if resolved) */}
-          {alert.resolution_notes && (
+          {alert.notes && (
             <div className="card space-y-2">
               <h3 className="card-title flex items-center gap-2">
                 <ShieldCheck className="size-4" />
                 Resolution Notes
               </h3>
               <p className="text-sm text-muted-foreground">
-                {alert.resolution_notes}
+                {alert.notes}
               </p>
             </div>
           )}
@@ -341,10 +350,10 @@ export function EmergencyDetailView({ alertId }: EmergencyDetailViewProps) {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Actions */}
-          {alert.status !== 'RESOLVED' && (
+          {alert.status !== 'resolved' && (
             <div className="card space-y-4">
               <h3 className="card-title">Actions</h3>
-              {alert.status === 'SENT' && (
+              {alert.status === 'triggered' && (
                 <Button
                   className="w-full"
                   onClick={handleAcknowledge}
@@ -357,7 +366,7 @@ export function EmergencyDetailView({ alertId }: EmergencyDetailViewProps) {
                   Acknowledge Alert
                 </Button>
               )}
-              {alert.status === 'ACKNOWLEDGED' && (
+              {alert.status === 'acknowledged' && (
                 <>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">
@@ -399,7 +408,7 @@ export function EmergencyDetailView({ alertId }: EmergencyDetailViewProps) {
                   <User className="size-4 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Name</p>
-                    <p className="text-sm font-medium">{alert.user.name}</p>
+                    <p className="text-sm font-medium">{alert.user.fullName}</p>
                   </div>
                 </div>
                 {alert.user.email && (
@@ -446,7 +455,7 @@ export function EmergencyDetailView({ alertId }: EmergencyDetailViewProps) {
                   <div>
                     <p className="text-sm text-muted-foreground">Name</p>
                     <p className="text-sm font-medium">
-                      {alert.driver?.driver_name || driverData?.driver_name}
+                      {alert.driver?.driverName || driverData?.driverName}
                     </p>
                   </div>
                 </div>

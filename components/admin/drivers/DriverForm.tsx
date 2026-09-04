@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import {  } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Copy, RefreshCw, Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { vehiclesApi } from '@/lib/api'
+import { vehiclesApi, unwrapList } from '@/lib/api'
 import { toast } from 'sonner'
 import {
   Form,
@@ -41,7 +41,7 @@ export type DriverFormData = z.infer<typeof driverSchema>
 interface VehicleOption {
   id: string
   name: string
-  category?: string
+  vehicleType?: string
 }
 
 interface DriverFormProps {
@@ -77,11 +77,14 @@ export function DriverForm({
     },
   })
 
-  const { data: vehicles } = useQuery<VehicleOption[]>({
+  const { data } = useQuery({
     queryKey: ['admin-vehicles', 'all'],
-    queryFn: () => vehiclesApi.list({ limit: 999 }).then((r) => r.data),
+    // Backend caps AND validates `limit` at 100 — `limit: 999` returns HTTP 400.
+    // The list is `{ data, meta }`; unwrapList normalises it to `{ items, meta }`.
+    queryFn: () => vehiclesApi.list({ limit: 100 }).then(unwrapList<VehicleOption>),
     staleTime: 60000,
   })
+  const vehicles = data?.items ?? []
 
   const authPin = form.watch('auth_pin')
   const telegramId = form.watch('telegram_id')
@@ -171,9 +174,9 @@ export function DriverForm({
                   </FormControl>
                   <SelectContent className="z-[1100] min-w-[200px]">
                     <SelectItem value="__none__">None</SelectItem>
-                    {vehicles?.map((v) => (
+                    {vehicles.map((v) => (
                       <SelectItem key={v.id} value={v.id}>
-                        {v.name} ({v.category})
+                        {v.name} ({v.vehicleType})
                       </SelectItem>
                     ))}
                   </SelectContent>

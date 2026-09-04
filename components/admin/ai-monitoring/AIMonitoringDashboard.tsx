@@ -12,7 +12,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -22,76 +21,79 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { format } from 'date-fns'
-import { Bot, TrendingUp, MessageSquare, AlertCircle, Edit2, Wrench } from 'lucide-react'
+import { Bot, TrendingUp, DollarSign, Edit2, Wrench } from 'lucide-react'
 import { toast } from 'sonner'
 
+// One row from getAIAssistedBookings().bookings. The service maps each booking
+// down to exactly these fields — there is no user object, booking_type,
+// metadata, ai_assisted flag or passenger split in the response — so the table
+// shows the userId and a status/total/date summary only.
 interface AIBooking {
   id: string
-  booking_ref: string
-  user?: { name: string; email: string }
-  user_id: string
+  reference: string
+  userId: string
   status: string
-  booking_type: string
-  total_usd: number
-  ai_assisted: boolean
-  metadata?: {
-    session_id?: string
-    ai_assisted?: boolean
-    validation_errors?: string[]
-    [key: string]: unknown
-  }
-  created_at: string
-  travel_date?: string
-  num_adults?: number
-  num_children?: number
+  totalUsd: number
+  createdAt: string
 }
 
-/** Fields an admin may correct on an AI-created booking. */
+// getAIAssistedBookings returns this aggregate, NOT a bare array. The old code
+// cast r.data to AIBooking[] and then called .length / .filter / .map on it,
+// which threw because r.data is this object.
+interface AIAssistedBookingsResponse {
+  totalBookings: number
+  aiAssistedBookings: number
+  aiAssistedRevenueUsd: number
+  bookings: AIBooking[]
+  period: { startDate: string; endDate: string }
+}
+
+// getAIBookingSuccessRate response. The rate lives on successRatePercent, not
+// the old success_rate.
+interface SuccessRateResponse {
+  totalAiAssistedBookings: number
+  successfulBookings: number
+  successRatePercent: number
+  byStatus: Record<string, number>
+  period: { startDate: string; endDate: string }
+}
+
+/** Fields an admin may correct on an AI-created booking (see UpdateBookingDto). */
 interface BookingCorrection {
   status?: string
-  travel_date?: string
-  num_adults?: number
-  num_children?: number
-}
-
-interface SessionDetails {
-  sessionId: string
-  conversation_history?: Array<{
-    role: string
-    content: string
-    timestamp?: string
-  }>
-  booking_id?: string
-  status?: string
+  startDate?: string
+  passengerCount?: number
+  roomCount?: number
 }
 
 export function AIMonitoringDashboard() {
   const qc = useQueryClient()
-  const [sessionId, setSessionId] = useState<string | null>(null)
   const [editingBooking, setEditingBooking] = useState<AIBooking | null>(null)
   const [correctionForm, setCorrectionForm] = useState({
     status: '',
-    travel_date: '',
-    num_adults: 1,
-    num_children: 0,
+    startDate: '',
+    passengerCount: 1,
+    roomCount: 1,
   })
 
-  const { data: bookings = [], isLoading } = useQuery({
+  const { data: bookingsData, isLoading } = useQuery({
     queryKey: ['admin-ai-bookings'],
-    queryFn: () => aiSessionsApi.getBookings().then((r) => r.data as AIBooking[]),
+    queryFn: () =>
+      aiSessionsApi
+        .getBookings()
+        .then((r) => r.data as AIAssistedBookingsResponse),
     staleTime: 30000,
   })
 
+  // The table and metrics operate on the bookings array carried by the
+  // aggregate; default to [] until the query resolves.
+  const bookings = bookingsData?.bookings ?? []
+
   const { data: successRateData } = useQuery({
     queryKey: ['admin-ai-success-rate'],
-    queryFn: () => aiSessionsApi.getSuccessRate().then((r) => r.data),
+    queryFn: () =>
+      aiSessionsApi.getSuccessRate().then((r) => r.data as SuccessRateResponse),
     staleTime: 60000,
-  })
-
-  const { data: sessionDetails, isLoading: sessionLoading } = useQuery({
-    queryKey: ['admin-ai-session', sessionId],
-    queryFn: () => aiSessionsApi.getSession(sessionId!).then((r) => r.data as SessionDetails),
-    enabled: !!sessionId,
   })
 
   const updateMutation = useMutation({
@@ -107,35 +109,43 @@ export function AIMonitoringDashboard() {
 
   const openCorrection = (booking: AIBooking) => {
     setEditingBooking(booking)
+    // Status is the only correctable field the bookings endpoint returns; dates
+    // and counts are not in the response, so the form opens at safe defaults for
+    // the admin to fill in.
     setCorrectionForm({
       status: booking.status || '',
-      travel_date: booking.travel_date ? format(new Date(booking.travel_date), 'yyyy-MM-dd') : '',
-      num_adults: booking.num_adults ?? 1,
-      num_children: booking.num_children ?? 0,
+      startDate: '',
+      passengerCount: 1,
+      roomCount: 1,
     })
   }
 
   const handleCorrectionSubmit = () => {
     if (!editingBooking) return
+    // Keys mirror UpdateBookingDto exactly (status, startDate, passengerCount,
+    // roomCount). forbidNonWhitelisted 400s on anything else — which is why the
+    // old travel_date / num_adults / num_children payload was rejected.
     const payload: BookingCorrection = {}
     if (correctionForm.status) payload.status = correctionForm.status
-    if (correctionForm.travel_date) payload.travel_date = correctionForm.travel_date
-    if (correctionForm.num_adults != null) payload.num_adults = correctionForm.num_adults
-    if (correctionForm.num_children != null) payload.num_children = correctionForm.num_children
+    if (correctionForm.startDate) payload.startDate = correctionForm.startDate
+    if (correctionForm.passengerCount >= 1)
+      payload.passengerCount = correctionForm.passengerCount
+    if (correctionForm.roomCount >= 1)
+      payload.roomCount = correctionForm.roomCount
     updateMutation.mutate({ id: editingBooking.id, data: payload })
   }
 
-  const successRate = successRateData?.success_rate ??
+  const successRate =
+    successRateData?.successRatePercent ??
     (bookings.length > 0
-      ? ((bookings.filter((b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED').length /
-          bookings.length) *
-        100).toFixed(1)
+      ? (
+          (bookings.filter(
+            (b) => b.status === 'confirmed' || b.status === 'completed',
+          ).length /
+            bookings.length) *
+          100
+        ).toFixed(1)
       : '0.0')
-
-  const validationErrors = (booking: AIBooking) => {
-    const errs = booking.metadata?.validation_errors
-    return Array.isArray(errs) ? errs : []
-  }
 
   return (
     <div className="space-y-6">
@@ -187,6 +197,9 @@ export function AIMonitoringDashboard() {
           </div>
         </div>
 
+        {/* Replaces the old "validation errors" tile: that count came from
+            booking.metadata.validation_errors, which getAIAssistedBookings does
+            not return. Revenue is a real field on the same response. */}
         <div className="card" style={{ textAlign: 'center', padding: '20px 16px' }}>
           <div
             className="inline-flex items-center justify-center rounded-full mb-2"
@@ -197,13 +210,13 @@ export function AIMonitoringDashboard() {
               color: 'var(--warning)',
             }}
           >
-            <AlertCircle size={18} />
+            <DollarSign size={18} />
           </div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--warning)' }}>
-            {bookings.filter((b) => validationErrors(b).length > 0).length}
+          <div style={{ fontSize: 28, fontWeight: 700 }}>
+            ${Number(bookingsData?.aiAssistedRevenueUsd ?? 0).toFixed(2)}
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-            With Validation Errors
+            AI-Assisted Revenue
           </div>
         </div>
       </div>
@@ -217,18 +230,24 @@ export function AIMonitoringDashboard() {
           emptyMessage="No AI-assisted bookings found"
           columns={[
             {
-              key: 'booking_ref',
+              key: 'reference',
               label: 'Ref',
               render: (r: AIBooking) => (
                 <span className="font-mono text-xs text-primary bg-primary/10 px-2 py-0.5 rounded">
-                  {r.booking_ref}
+                  {r.reference}
                 </span>
               ),
             },
             {
-              key: 'user',
-              label: 'Customer',
-              render: (r: AIBooking) => r.user?.name || '—',
+              // The response carries only userId — no user name/email — so the
+              // id is the honest identifier to show here.
+              key: 'userId',
+              label: 'User',
+              render: (r: AIBooking) => (
+                <span className="font-mono text-xs text-muted-foreground">
+                  {r.userId}
+                </span>
+              ),
             },
             {
               key: 'status',
@@ -236,145 +255,30 @@ export function AIMonitoringDashboard() {
               render: (r: AIBooking) => <StatusBadge status={r.status} />,
             },
             {
-              key: 'booking_type',
-              label: 'Type',
-              render: (r: AIBooking) => (
-                <Badge variant="outline" className="text-xs">
-                  {r.booking_type}
-                </Badge>
-              ),
-            },
-            {
-              key: 'total_usd',
+              key: 'totalUsd',
               label: 'Total',
               render: (r: AIBooking) => (
-                <span className="font-mono">${Number(r.total_usd).toFixed(2)}</span>
+                <span className="font-mono">${Number(r.totalUsd).toFixed(2)}</span>
               ),
             },
             {
-              key: 'ai_flag',
-              label: 'AI',
-              render: (r: AIBooking) =>
-                r.ai_assisted || r.metadata?.ai_assisted ? (
-                  <Bot size={14} className="text-primary" />
-                ) : (
-                  '—'
-                ),
-            },
-            {
-              key: 'session_id',
-              label: 'Session',
-              render: (r: AIBooking) => {
-                const sid = r.metadata?.session_id
-                return sid ? (
-                  <button
-                    className="font-mono text-xs text-muted-foreground hover:text-primary underline"
-                    onClick={() => setSessionId(sid)}
-                  >
-                    {sid.slice(0, 12)}…
-                  </button>
-                ) : (
-                  '—'
-                )
-              },
-            },
-            {
-              key: 'errors',
-              label: 'Errors',
-              render: (r: AIBooking) => {
-                const errs = validationErrors(r)
-                return errs.length > 0 ? (
-                  <span
-                    className="inline-flex items-center gap-1 text-xs text-destructive"
-                    title={errs.join(', ')}
-                  >
-                    <AlertCircle size={12} />
-                    {errs.length} error{errs.length > 1 ? 's' : ''}
-                  </span>
-                ) : (
-                  <span className="text-xs text-muted-foreground">—</span>
-                )
-              },
-            },
-            {
-              key: 'created_at',
+              key: 'createdAt',
               label: 'Created',
               render: (r: AIBooking) =>
-                format(new Date(r.created_at), 'MMM d, HH:mm'),
+                format(new Date(r.createdAt), 'MMM d, HH:mm'),
             },
           ]}
           actions={(row: AIBooking) => (
-            <div className="flex items-center gap-1">
-              {row.metadata?.session_id && (
-                <button
-                  className="btn btn-ghost btn-icon btn-sm"
-                  onClick={() => setSessionId(row.metadata!.session_id!)}
-                  title="View session"
-                >
-                  <MessageSquare size={13} />
-                </button>
-              )}
-              <button
-                className="btn btn-ghost btn-icon btn-sm"
-                onClick={() => openCorrection(row)}
-                title="Manual correction"
-              >
-                <Wrench size={13} />
-              </button>
-            </div>
+            <button
+              className="btn btn-ghost btn-icon btn-sm"
+              onClick={() => openCorrection(row)}
+              title="Manual correction"
+            >
+              <Wrench size={13} />
+            </button>
           )}
         />
       </div>
-
-      {/* Session History Dialog */}
-      <Dialog open={!!sessionId} onOpenChange={(open) => !open && setSessionId(null)}>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <MessageSquare size={16} />
-              Session History
-            </DialogTitle>
-          </DialogHeader>
-          {sessionLoading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-16 bg-muted rounded animate-pulse" />
-              ))}
-            </div>
-          ) : sessionDetails?.conversation_history ? (
-            <div className="space-y-3">
-              {sessionDetails.conversation_history.map((msg, i) => (
-                <div
-                  key={i}
-                  className={`p-3 rounded-lg text-sm ${
-                    msg.role === 'user'
-                      ? 'bg-muted ml-4'
-                      : msg.role === 'assistant'
-                      ? 'bg-primary/10 mr-4'
-                      : 'bg-warning/10'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="outline" className="text-xs capitalize">
-                      {msg.role}
-                    </Badge>
-                    {msg.timestamp && (
-                      <span className="text-xs text-muted-foreground">
-                        {format(new Date(msg.timestamp), 'HH:mm:ss')}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              No conversation history available for this session.
-            </p>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Manual Correction Dialog */}
       <Dialog open={!!editingBooking} onOpenChange={(open) => !open && setEditingBooking(null)}>
@@ -390,22 +294,9 @@ export function AIMonitoringDashboard() {
               <div className="text-sm text-muted-foreground">
                 Booking{' '}
                 <span className="font-mono text-primary">
-                  {editingBooking.booking_ref}
+                  {editingBooking.reference}
                 </span>
               </div>
-
-              {validationErrors(editingBooking).length > 0 && (
-                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                  <p className="text-sm font-medium text-destructive mb-1">
-                    Validation Errors
-                  </p>
-                  <ul className="text-sm text-muted-foreground list-disc list-inside">
-                    {validationErrors(editingBooking).map((err, i) => (
-                      <li key={i}>{err}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
 
               <div>
                 <label className="text-sm font-medium">Status</label>
@@ -418,25 +309,29 @@ export function AIMonitoringDashboard() {
                   <SelectTrigger>
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
+                  {/* Lowercase BookingStatus enum values. */}
                   <SelectContent>
-                    <SelectItem value="PENDING">Pending</SelectItem>
-                    <SelectItem value="CONFIRMED">Confirmed</SelectItem>
-                    <SelectItem value="COMPLETED">Completed</SelectItem>
-                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                    <SelectItem value="REFUNDED">Refunded</SelectItem>
+                    <SelectItem value="hold">Hold</SelectItem>
+                    <SelectItem value="pending_payment">Pending Payment</SelectItem>
+                    <SelectItem value="confirmed">Confirmed</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                    <SelectItem value="expired">Expired</SelectItem>
+                    <SelectItem value="payment_failed">Payment Failed</SelectItem>
+                    <SelectItem value="no_show">No Show</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
-                <label className="text-sm font-medium">Travel Date</label>
+                <label className="text-sm font-medium">Start Date</label>
                 <Input
                   type="date"
-                  value={correctionForm.travel_date}
+                  value={correctionForm.startDate}
                   onChange={(e) =>
                     setCorrectionForm((f) => ({
                       ...f,
-                      travel_date: e.target.value,
+                      startDate: e.target.value,
                     }))
                   }
                 />
@@ -444,29 +339,29 @@ export function AIMonitoringDashboard() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium">Adults</label>
+                  <label className="text-sm font-medium">Passengers</label>
                   <Input
                     type="number"
                     min={1}
-                    value={correctionForm.num_adults}
+                    value={correctionForm.passengerCount}
                     onChange={(e) =>
                       setCorrectionForm((f) => ({
                         ...f,
-                        num_adults: parseInt(e.target.value) || 1,
+                        passengerCount: parseInt(e.target.value) || 1,
                       }))
                     }
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium">Children</label>
+                  <label className="text-sm font-medium">Rooms</label>
                   <Input
                     type="number"
-                    min={0}
-                    value={correctionForm.num_children}
+                    min={1}
+                    value={correctionForm.roomCount}
                     onChange={(e) =>
                       setCorrectionForm((f) => ({
                         ...f,
-                        num_children: parseInt(e.target.value) || 0,
+                        roomCount: parseInt(e.target.value) || 1,
                       }))
                     }
                   />

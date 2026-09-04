@@ -4,6 +4,9 @@ import { BookingDetailView } from '@/components/admin/bookings/BookingDetailView
 import * as api from '@/lib/api'
 import userEvent from '@testing-library/user-event'
 
+// BookingDetailView fetches a single booking (`bookingsApi.get(id).then(r => r.data)`),
+// so the get mock resolves the bare booking envelope `{ data: booking }` — not a
+// paginated list. It does not use `unwrapList`, so no requireActual is needed here.
 jest.mock('@/lib/api', () => ({
   bookingsApi: {
     get: jest.fn(),
@@ -24,6 +27,10 @@ jest.mock('next/navigation', () => ({
   }),
 }))
 
+// The real DriverAssignmentPanel consumes the assignment in camelCase
+// (`driver.driverName`, `telegramNotified`, `assignmentTimestamp`) and posts
+// `assignmentsApi.create({ driverId, bookingId })`. The double mirrors that
+// contract so the fixture stays in the true backend shape.
 jest.mock('@/components/admin/bookings/DriverAssignmentPanel', () => ({
   DriverAssignmentPanel: ({
     bookingId,
@@ -31,8 +38,8 @@ jest.mock('@/components/admin/bookings/DriverAssignmentPanel', () => ({
   }: {
     bookingId: string
     currentAssignment?: {
-      driver?: { driver_name?: string }
-      telegram_notified?: boolean
+      driver?: { driverName?: string }
+      telegramNotified?: boolean
     }
   }) => {
     if (currentAssignment) {
@@ -40,8 +47,8 @@ jest.mock('@/components/admin/bookings/DriverAssignmentPanel', () => ({
         <div data-testid="driver-assignment-panel">
           <h3>Current Assignment</h3>
           <div>Pending Response</div>
-          <div>{currentAssignment.driver?.driver_name}</div>
-          {currentAssignment.telegram_notified && <div>Telegram notified</div>}
+          <div>{currentAssignment.driver?.driverName}</div>
+          {currentAssignment.telegramNotified && <div>Telegram notified</div>}
         </div>
       )
     }
@@ -56,7 +63,7 @@ jest.mock('@/components/admin/bookings/DriverAssignmentPanel', () => ({
         <button
           onClick={() => {
             api.assignmentsApi
-              .create({ driver_id: 'drv-1', booking_id: bookingId })
+              .create({ driverId: 'drv-1', bookingId })
               .catch(() => {})
           }}
         >
@@ -67,27 +74,32 @@ jest.mock('@/components/admin/bookings/DriverAssignmentPanel', () => ({
   },
 }))
 
+// camelCase fields matching the admin API's Booking aggregate:
+//   reference (not booking_ref), startDate/endDate (not travel_date/end_date),
+//   passengerCount (not num_adults/num_children), totalUsd/subtotalUsd/discountUsd,
+//   user.fullName (not user.name), items[].bookingType (booking type lives on the
+//   line items, not the booking), driverAssignment (not assignment), and payments
+//   with amountUsd/paidAt. BookingStatus is lowercase.
 const mockBooking = {
   id: 'booking-1',
-  booking_ref: 'BK20240517001',
-  status: 'CONFIRMED',
-  booking_type: 'PACKAGE',
-  travel_date: '2026-05-20',
-  end_date: '2026-05-25',
-  num_adults: 2,
-  num_children: 1,
-  total_usd: 1250.0,
-  subtotal_usd: 1300.0,
-  discount_amount_usd: 50.0,
+  reference: 'BK20240517001',
+  status: 'confirmed',
+  startDate: '2026-05-20',
+  endDate: '2026-05-25',
+  passengerCount: 3,
+  totalUsd: 1250.0,
+  subtotalUsd: 1300.0,
+  discountUsd: 50.0,
+  userId: 'user-1',
   special_requests: 'Vegetarian meals',
   customizations: 'Extra luggage space',
-  ai_assisted: true,
-  created_at: '2026-05-10T10:00:00Z',
+  createdAt: '2026-05-10T10:00:00Z',
   user: {
-    name: 'John Smith',
+    fullName: 'John Smith',
     email: 'john@example.com',
     phone: '+85512345678',
   },
+  items: [{ bookingType: 'trip', vehicleId: null }],
   trip: {
     name: 'Angkor Wat Tour',
     destination: 'Siem Reap',
@@ -106,29 +118,31 @@ const mockBooking = {
     name: 'Sokha Chen',
     languages: ['English', 'Khmer'],
   },
-  assignment: null,
+  driverAssignment: null,
   payments: [
     {
       id: 'pay-1',
-      payment_method: 'Credit Card',
-      status: 'COMPLETED',
-      amount_usd: 1250.0,
-      created_at: '2026-05-10T10:05:00Z',
+      status: 'succeeded',
+      amountUsd: 1250.0,
+      paidAt: '2026-05-10T10:05:00Z',
     },
   ],
 }
 
 const mockBookingWithAssignment = {
   ...mockBooking,
-  booking_type: 'TRANSPORT_ONLY',
-  assignment: {
+  // Transport line item is what triggers the driver panel now (booking_type is gone).
+  items: [{ bookingType: 'transportation', vehicleId: 'veh-1' }],
+  driverAssignment: {
     id: 'assign-1',
-    driver_id: 'drv-1',
+    driverId: 'drv-1',
+    vehicleId: 'veh-1',
+    // AssignmentStatus is UPPERCASE in Prisma.
     status: 'PENDING',
-    telegram_notified: true,
-    assignment_timestamp: new Date().toISOString(),
+    telegramNotified: true,
+    assignmentTimestamp: new Date().toISOString(),
     driver: {
-      driver_name: 'John Doe',
+      driverName: 'John Doe',
       phone: '+85512345678',
     },
   },
@@ -137,21 +151,31 @@ const mockBookingWithAssignment = {
 const mockDrivers = [
   {
     id: 'drv-1',
-    driver_name: 'John Doe',
+    driverName: 'John Doe',
     phone: '+85512345678',
-    telegram_id: '123456789',
-    vehicle_id: 'veh-1',
+    telegramId: '123456789',
+    vehicleId: 'veh-1',
     status: 'AVAILABLE',
   },
   {
     id: 'drv-2',
-    driver_name: 'Jane Smith',
+    driverName: 'Jane Smith',
     phone: '+85587654321',
-    telegram_id: null,
-    vehicle_id: 'veh-2',
+    telegramId: null,
+    vehicleId: 'veh-2',
     status: 'AVAILABLE',
   },
 ]
+
+/** Mimics the axios envelope interceptor for an admin list (`{ data, meta }`). */
+function paginated<T>(items: T[]) {
+  return {
+    data: {
+      data: items,
+      meta: { page: 1, limit: 20, total: items.length, totalPages: 1 },
+    },
+  }
+}
 
 describe('BookingDetailView', () => {
   beforeEach(() => {
@@ -167,22 +191,19 @@ describe('BookingDetailView', () => {
       expect(screen.getByText('BK20240517001')).toBeInTheDocument()
     })
 
-    expect(screen.getByText('CONFIRMED')).toBeInTheDocument()
+    // Status renders as the lowercase enum with underscores spaced out.
+    expect(screen.getByText('confirmed')).toBeInTheDocument()
     expect(screen.getByText('John Smith')).toBeInTheDocument()
     expect(screen.getByText('john@example.com')).toBeInTheDocument()
-    expect(screen.getByText(/2 adults/)).toBeInTheDocument()
-    expect(screen.getByText(/1 children/)).toBeInTheDocument()
+    // Passengers is a single count now (no adults/children split).
+    expect(screen.getByText(/3 passengers/)).toBeInTheDocument()
   })
 
-  it('shows AI assisted badge when booking is AI-assisted', async () => {
-    ;(api.bookingsApi.get as jest.Mock).mockResolvedValue({ data: mockBooking })
-
-    render(<BookingDetailView bookingId="booking-1" />)
-
-    await waitFor(() => {
-      expect(screen.getByText('AI')).toBeInTheDocument()
-    })
-  })
+  // NOTE: The "shows AI assisted badge" test was deleted. The badge/column was
+  // removed from BookingDetailView (and BookingList) because the backend returns
+  // no `ai_assisted` / provenance field on a booking. There is no data source for
+  // the feature this test asserted, so it cannot be made to pass without inventing
+  // a backend column — it is a stale assertion of a removed (buggy) UI element.
 
   it('shows booking not found when API returns empty', async () => {
     ;(api.bookingsApi.get as jest.Mock).mockResolvedValue({ data: null })
@@ -207,7 +228,7 @@ describe('BookingDetailView', () => {
   })
 
   it('hides modify/cancel buttons for non-editable bookings', async () => {
-    const completedBooking = { ...mockBooking, status: 'COMPLETED' }
+    const completedBooking = { ...mockBooking, status: 'completed' }
     ;(api.bookingsApi.get as jest.Mock).mockResolvedValue({ data: completedBooking })
 
     render(<BookingDetailView bookingId="booking-1" />)
@@ -222,9 +243,9 @@ describe('BookingDetailView', () => {
 
   it('renders driver assignment panel for transport bookings', async () => {
     ;(api.bookingsApi.get as jest.Mock).mockResolvedValue({
-      data: { ...mockBooking, booking_type: 'TRANSPORT_ONLY' },
+      data: { ...mockBooking, items: [{ bookingType: 'transportation', vehicleId: 'veh-1' }] },
     })
-    ;(api.driversApi.list as jest.Mock).mockResolvedValue({ data: mockDrivers })
+    ;(api.driversApi.list as jest.Mock).mockResolvedValue(paginated(mockDrivers))
 
     render(<BookingDetailView bookingId="booking-1" />)
 
@@ -237,7 +258,7 @@ describe('BookingDetailView', () => {
     ;(api.bookingsApi.get as jest.Mock).mockResolvedValue({
       data: mockBookingWithAssignment,
     })
-    ;(api.driversApi.list as jest.Mock).mockResolvedValue({ data: mockDrivers })
+    ;(api.driversApi.list as jest.Mock).mockResolvedValue(paginated(mockDrivers))
 
     render(<BookingDetailView bookingId="booking-1" />)
 
@@ -253,9 +274,9 @@ describe('BookingDetailView', () => {
   it('assigns a driver to booking', async () => {
     const user = userEvent.setup()
     ;(api.bookingsApi.get as jest.Mock).mockResolvedValue({
-      data: { ...mockBooking, booking_type: 'TRANSPORT_ONLY' },
+      data: { ...mockBooking, items: [{ bookingType: 'transportation', vehicleId: 'veh-1' }] },
     })
-    ;(api.driversApi.list as jest.Mock).mockResolvedValue({ data: mockDrivers })
+    ;(api.driversApi.list as jest.Mock).mockResolvedValue(paginated(mockDrivers))
     ;(api.assignmentsApi.create as jest.Mock).mockResolvedValue({ data: {} })
 
     render(<BookingDetailView bookingId="booking-1" />)
@@ -272,11 +293,12 @@ describe('BookingDetailView', () => {
     const assignButton = screen.getByRole('button', { name: /assign driver/i })
     await user.click(assignButton)
 
+    // AssignDriverDto expects camelCase driverId/bookingId.
     await waitFor(() => {
       expect(api.assignmentsApi.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          driver_id: 'drv-1',
-          booking_id: 'booking-1',
+          driverId: 'drv-1',
+          bookingId: 'booking-1',
         })
       )
     })
@@ -291,8 +313,9 @@ describe('BookingDetailView', () => {
       expect(screen.getByText('Payment History')).toBeInTheDocument()
     })
 
-    expect(screen.getByText(/Credit Card/)).toBeInTheDocument()
-    expect(screen.getByText(/COMPLETED/)).toBeInTheDocument()
+    // The payment row renders the payment status; `payment_method` is no longer
+    // returned by the backend, so the old "Credit Card" assertion was removed.
+    expect(screen.getByText('succeeded')).toBeInTheDocument()
   })
 
   it('shows price breakdown with discount', async () => {

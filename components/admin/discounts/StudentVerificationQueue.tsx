@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Eye } from 'lucide-react'
-import { discountsApi } from '@/lib/api'
+import { discountsApi, unwrapList } from '@/lib/api'
 import { DataTable } from '@/components/shared/DataTable'
 import { PageHeader, StatusBadge } from '@/components/shared'
 import { StudentVerificationReview } from './StudentVerificationReview'
@@ -17,12 +17,19 @@ import { formatDistanceToNow } from 'date-fns'
 
 interface Verification {
   id: string
+  // Backend (admin-discounts.service getAllStudentVerifications) returns camelCase.
+  userId?: string
+  user?: { name: string; fullName?: string | null; email?: string }
+  status: string
+  createdAt: string
+  // Legacy snake_case fields still read by StudentVerificationReview (a sibling
+  // component not in this change set). The backend no longer emits these names;
+  // they are kept so `selected` stays assignable to that component's props until
+  // it is migrated too.
   user_id: string
-  user?: { name: string; email?: string }
   institution_name: string
   student_id_image_url: string
   face_selfie_url?: string
-  status: string
   rejection_reason?: string
   created_at: string
   reviewed_at?: string
@@ -35,8 +42,8 @@ export function StudentVerificationQueue() {
     queryKey: ['admin-student-verifications'],
     queryFn: () =>
       discountsApi
-        .getStudentVerifications({ status: 'PENDING' })
-        .then((r) => r.data as Verification[]),
+        .getStudentVerifications({ status: 'pending' })
+        .then((r) => unwrapList<Verification>(r).items),
     staleTime: 30000,
   })
 
@@ -57,7 +64,7 @@ export function StudentVerificationQueue() {
             {
               key: 'student_name',
               label: 'Student',
-              render: (r: Verification) => r.user?.name || r.user_id,
+              render: (r: Verification) => r.user?.fullName || r.userId,
             },
             {
               key: 'institution_name',
@@ -72,7 +79,7 @@ export function StudentVerificationQueue() {
               key: 'submitted_at',
               label: 'Submitted',
               render: (r: Verification) =>
-                formatDistanceToNow(new Date(r.created_at), {
+                formatDistanceToNow(new Date(r.createdAt), {
                   addSuffix: true,
                 }),
             },

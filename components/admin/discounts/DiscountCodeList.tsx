@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, ToggleLeft, ToggleRight, Edit2 } from 'lucide-react'
-import { discountsApi } from '@/lib/api'
+import { discountsApi, unwrapList } from '@/lib/api'
 import { DataTable } from '@/components/shared/DataTable'
 import { PageHeader, StatusBadge, ConfirmDialog } from '@/components/shared'
 import { DiscountCodeForm, type DiscountCodeFormData } from './DiscountCodeForm'
@@ -19,17 +19,17 @@ import { toast } from 'sonner'
 interface DiscountCode {
   id: string
   code: string
-  discount_type: string
-  discount_percentage?: number
-  discount_value?: number
-  valid_from: string
-  valid_until: string
-  usage_count?: number
-  current_uses?: number
-  max_usage?: number
-  max_uses?: number
-  is_active: boolean
-  created_at: string
+  // Backend (admin-discounts.service) returns camelCase; `discountType` is the
+  // lowercase `DiscountType` enum (percentage | fixed_amount) and `value` is the
+  // single numeric amount (percent or USD depending on the type).
+  discountType: 'percentage' | 'fixed_amount'
+  value?: number
+  validFrom: string
+  validUntil: string
+  currentUses?: number
+  maxUses?: number
+  isActive: boolean
+  createdAt: string
 }
 
 export function DiscountCodeList() {
@@ -40,7 +40,7 @@ export function DiscountCodeList() {
 
   const { data = [], isLoading } = useQuery({
     queryKey: ['admin-discounts'],
-    queryFn: () => discountsApi.list().then((r) => r.data as DiscountCode[]),
+    queryFn: () => discountsApi.list().then((r) => unwrapList<DiscountCode>(r).items),
     staleTime: 30000,
   })
 
@@ -67,7 +67,10 @@ export function DiscountCodeList() {
   })
 
   const deactivateMutation = useMutation({
-    mutationFn: (id: string) => discountsApi.update(id, { is_active: false }),
+    // Dedicated route, not `update({ is_active: false })`: the update DTO
+    // whitelists camelCase `isActive` only, and `forbidNonWhitelisted` 400s on
+    // the snake_case body the old call sent.
+    mutationFn: (id: string) => discountsApi.deactivate(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-discounts'] })
       setDeactivateTarget(null)
@@ -104,11 +107,12 @@ export function DiscountCodeList() {
   const defaultFormValues: Partial<DiscountCodeFormData> | undefined = editing
     ? {
         code: editing.code,
-        discount_type: editing.discount_type === 'FIXED' ? 'FIXED' : 'PERCENTAGE',
-        value: editing.discount_percentage ?? editing.discount_value ?? 0,
-        valid_from: editing.valid_from ? format(new Date(editing.valid_from), "yyyy-MM-dd'T'HH:mm") : '',
-        valid_until: editing.valid_until ? format(new Date(editing.valid_until), "yyyy-MM-dd'T'HH:mm") : '',
-        max_uses: editing.max_usage ?? editing.max_uses,
+        // No translation: the form and the backend DTO both use the lowercase enum verbatim.
+        discountType: editing.discountType,
+        value: editing.value ?? 0,
+        validFrom: editing.validFrom ? format(new Date(editing.validFrom), "yyyy-MM-dd'T'HH:mm") : '',
+        validUntil: editing.validUntil ? format(new Date(editing.validUntil), "yyyy-MM-dd'T'HH:mm") : '',
+        maxUses: editing.maxUses,
       }
     : undefined
 
@@ -144,37 +148,37 @@ export function DiscountCodeList() {
               ),
             },
             {
-              key: 'discount_percentage',
+              key: 'value',
               label: 'Discount',
               render: (r: DiscountCode) =>
-                r.discount_percentage != null
-                  ? `${r.discount_percentage}%`
-                  : r.discount_value != null
-                  ? `$${r.discount_value}`
-                  : '—',
+                r.value == null
+                  ? '—'
+                  : r.discountType === 'percentage'
+                  ? `${r.value}%`
+                  : `$${r.value}`,
             },
             {
               key: 'valid_from',
               label: 'Valid From',
               render: (r: DiscountCode) =>
-                r.valid_from
-                  ? format(new Date(r.valid_from), 'MMM d, yyyy')
+                r.validFrom
+                  ? format(new Date(r.validFrom), 'MMM d, yyyy')
                   : '—',
             },
             {
               key: 'valid_until',
               label: 'Valid Until',
               render: (r: DiscountCode) =>
-                r.valid_until
-                  ? format(new Date(r.valid_until), 'MMM d, yyyy')
+                r.validUntil
+                  ? format(new Date(r.validUntil), 'MMM d, yyyy')
                   : '—',
             },
             {
               key: 'usage',
               label: 'Usage',
               render: (r: DiscountCode) => {
-                const used = r.usage_count ?? r.current_uses ?? 0
-                const max = r.max_usage ?? r.max_uses
+                const used = r.currentUses ?? 0
+                const max = r.maxUses
                 return (
                   <span className="text-sm">
                     {used}
@@ -188,7 +192,7 @@ export function DiscountCodeList() {
               label: 'Active',
               render: (r: DiscountCode) => (
                 <StatusBadge
-                  status={r.is_active ? 'ACTIVE' : 'OFFLINE'}
+                  status={r.isActive ? 'ACTIVE' : 'OFFLINE'}
                 />
               ),
             },
@@ -202,7 +206,7 @@ export function DiscountCodeList() {
               >
                 <Edit2 size={13} />
               </button>
-              {row.is_active ? (
+              {row.isActive ? (
                 <button
                   className="btn btn-ghost btn-icon btn-sm"
                   title="Deactivate"
